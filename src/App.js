@@ -14,6 +14,7 @@ const GameClient = Client({
 const App = () => {
   console.log("App rendering"); // Add this line here
   const [playerID, setPlayerID] = useState("0");
+  console.log('App rendering GameClient with playerID:', playerID);
 
   return (
     <div
@@ -33,6 +34,7 @@ const App = () => {
       <GameClient playerID={playerID} />
     </div>
   );
+
 };
 
 export default App;

@@ -1,5 +1,5 @@
 // Card Classes
-const CLASSES = {
+export const CLASSES = {
   TANK: 'Tank',
   ADC: 'ADC',
   SUPPORT: 'Support',
@@ -25,8 +25,7 @@ function createCard(id, props) {
 }
 
 // Card Definitions
-const CARDS = {
-  // Tank Cards
+export const CARDS = {
   steadyDefender: (id) => createCard(id, {
     name: "Steady Defender",
     class: CLASSES.TANK,
@@ -38,7 +37,6 @@ const CARDS = {
     cost: 3
   }),
 
-  // Quick Attack Cards
   swiftStriker: (id) => createCard(id, {
     name: "Swift Striker",
     class: CLASSES.ASSASSIN,
@@ -50,7 +48,6 @@ const CARDS = {
     cost: 3
   }),
 
-  // Hold Bonus Card
   patientWarrior: (id) => createCard(id, {
     name: "Patient Warrior",
     class: CLASSES.TANK,
@@ -63,17 +60,10 @@ const CARDS = {
     holdBonus: {
       roundsHeld: 0,
       maxRounds: 2,
-      effect: (card) => {
-        if (card.holdBonus.roundsHeld === 1) {
-          card.hp += 1;
-        } else if (card.holdBonus.roundsHeld === 2) {
-          card.tick = 2;
-        }
-      }
+      bonusType: 'patientWarrior'
     }
   }),
 
-  // High Damage Card
   heavyStriker: (id) => createCard(id, {
     name: "Heavy Striker",
     class: CLASSES.ADC,
@@ -85,7 +75,6 @@ const CARDS = {
     cost: 4
   }),
 
-  // Excess Damage Card
   damageReflector: (id) => createCard(id, {
     name: "Damage Reflector",
     class: CLASSES.MAGE,
@@ -96,16 +85,13 @@ const CARDS = {
     tick: 3,
     cost: 3,
     effects: {
-      onExcessDamage: (G, ctx, card, damage) => {
-        // Reflect 1 damage back
-        return 1;
-      }
+      onExcessDamage: 'excessDamage'
     }
   })
 };
 
 // Function to generate initial deck
-function generateDeck() {
+export function generateDeck() {
   let deck = [];
   let id = 0;
 
@@ -131,8 +117,3 @@ function generateDeck() {
 
   return deck;
 }
-
-module.exports = {
-  CARDS,
-  generateDeck
-};
