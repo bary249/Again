@@ -1,7 +1,5 @@
+/* board.css */
 .game-board {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
@@ -9,13 +7,52 @@
 
 .player-info {
   margin-bottom: 20px;
-  text-align: center;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 5px;
 }
 
-.game-controls {
+.admin-controls {
   margin-bottom: 20px;
+  padding: 15px;
+  background: #2c3e50;
+  border-radius: 5px;
+  color: white;
+}
+
+.round-info {
+  font-size: 1.2em;
+  margin-bottom: 10px;
+}
+
+.admin-buttons {
   display: flex;
   gap: 10px;
+}
+
+.admin-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.admin-button.combat {
+  background: #e74c3c;
+}
+
+.admin-button.combat:hover {
+  background: #c0392b;
+}
+
+.admin-button.next-round {
+  background: #27ae60;
+}
+
+.admin-button.next-round:hover {
+  background: #219a52;
 }
 
 .columns {
@@ -25,19 +62,18 @@
 }
 
 .column {
-  border: 2px solid #ccc;
+  flex: 1;
+  border: 1px solid #ccc;
   padding: 10px;
-  width: 300px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  border-radius: 5px;
+  background: #f9f9f9;
 }
 
 .crystal {
-  background-color: #e0e0ff;
-  padding: 10px;
   text-align: center;
-  border-radius: 4px;
+  padding: 10px;
+  background: #e3f2fd;
+  border-radius: 5px;
   margin-bottom: 10px;
 }
 
@@ -47,75 +83,79 @@
   gap: 10px;
 }
 
-.player-cards, .opponent-cards {
+.player-cards,
+.opponent-cards {
+  min-height: 150px;
   padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.player-cards h4, .opponent-cards h4 {
-  margin: 0 0 10px 0;
+  background: #fff;
+  border-radius: 5px;
 }
 
 .card {
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 5px;
   background: white;
-  border: 1px solid #999;
-  padding: 8px;
-  margin: 5px;
-  border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.card.opponent {
-  background-color: #fff5f5;
+.opponent .card {
+  background: #f8f8f8;
 }
 
 .card-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 5px;
-  margin-top: 5px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .hand {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 20px 0;
-  justify-content: center;
-}
-
-.remove-button {
-  background-color: #ffdddd;
+  margin-top: 20px;
+  padding: 20px;
+  background: #f5f5f5;
+  border-radius: 5px;
 }
 
 .combat-log {
+  margin-top: 20px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 5px;
   max-height: 200px;
   overflow-y: auto;
-  width: 100%;
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin-top: 20px;
+}
+
+.log-entries {
+  display: flex;
+  flex-direction: column-reverse;
 }
 
 .log-entry {
-  margin: 5px 0;
-  font-family: monospace;
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
 }
 
 button {
   padding: 5px 10px;
-  cursor: pointer;
-  border: 1px solid #ccc;
-  background-color: #f0f0f0;
+  border: none;
   border-radius: 3px;
+  background: #2196f3;
+  color: white;
+  cursor: pointer;
 }
 
 button:disabled {
-  opacity: 0.5;
+  background: #ccc;
   cursor: not-allowed;
 }
 
-button:hover:not(:disabled) {
-  background-color: #e0e0e0;
+button.remove-button {
+  background: #f44336;
+}
+
+select {
+  padding: 5px;
+  font-size: 16px;
 }
