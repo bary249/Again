@@ -2,7 +2,6 @@
 import React from 'react';
 import './board.css';
 
-// Separate AdminControls into its own component
 const AdminControls = ({ G, moves }) => {
   const canSimulateCombat = G.players['0'].committed && 
                            G.players['1'].committed && 
@@ -15,6 +14,11 @@ const AdminControls = ({ G, moves }) => {
       <div className="player-states">
         <div>Player 0: {G.players['0'].committed ? 'Committed' : 'Playing'}</div>
         <div>Player 1: {G.players['1'].committed ? 'Committed' : 'Playing'}</div>
+      </div>
+      <div className="game-state">
+        <div>Round: {G.currentRound}</div>
+        <div>Current Tick: {G.currentTick}/5</div>
+        <div>Phase: {G.roundPhase}</div>
       </div>
       <div className="admin-buttons">
         <button 
@@ -38,20 +42,21 @@ const AdminControls = ({ G, moves }) => {
   );
 };
 
-const Card = ({ card, onPlay, onRemove, columnIndex, isPlayable, isRemovable }) => (
+const Card = ({ card, onPlay, onRemove, isPlayable, isRemovable }) => (
   <div className="card">
     {card.name}
     <br />
-    Cost: {card.cost}
+    Cost: {card.cost} | Tick: {card.tick}
     <br />
-    HP: {card.hp} DMG: {card.damage}
+    HP: {card.hp} | DMG: {card.damage}
+    {card.lastTickActed > 0 && <div>Last acted: Tick {card.lastTickActed}</div>}
     {(isPlayable || isRemovable) && (
       <div className="card-actions">
         {isPlayable && [0, 1, 2].map(colIndex => (
           <button
             key={colIndex}
             onClick={() => onPlay(card.id, colIndex)}
-            disabled={columnIndex === colIndex}
+            className="play-button"
           >
             Column {colIndex + 1}
           </button>
@@ -69,6 +74,60 @@ const Card = ({ card, onPlay, onRemove, columnIndex, isPlayable, isRemovable }) 
   </div>
 );
 
+const Column = ({ column, columnIndex, currentPlayerID, opponentID }) => (
+  <div className="column">
+    {/* Crystal */}
+    <div className="crystal">
+      <div>Crystal HP: {column.crystalHP}</div>
+      {column.controllingPlayer && (
+        <div className="controller">
+          Controlled by: Player {column.controllingPlayer}
+        </div>
+      )}
+    </div>
+
+    {/* Tiers */}
+    {column.tiers.map((tier, tierIndex) => (
+      <div key={tierIndex} 
+           className={`tier-container ${column.activeTier === tierIndex ? 'active-tier' : ''}`}>
+        <div className="tier-header">
+          Tier {tierIndex + 1} 
+          {column.activeTier === tierIndex && <span className="active-badge">Active</span>}
+        </div>
+        <div className="tier-sections">
+          {/* Current player's cards */}
+          <div className="player-section">
+            <h4>Your Cards</h4>
+            <div className="tier-cards">
+              {(tier.cards[currentPlayerID] || []).map((card, idx) => (
+                <Card
+                  key={card.id}
+                  card={card}
+                  isPlayable={false}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Opponent's cards */}
+          <div className="opponent-section">
+            <h4>Opponent's Cards</h4>
+            <div className="tier-cards">
+              {(tier.cards[opponentID] || []).map((card, idx) => (
+                <Card
+                  key={card.id}
+                  card={card}
+                  isPlayable={false}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const Board = ({ G, ctx, moves, playerID }) => {
   const currentPlayerID = playerID || '0';
   const currentPlayer = G.players[currentPlayerID];
@@ -83,11 +142,10 @@ const Board = ({ G, ctx, moves, playerID }) => {
     <div className="game-board">
       {/* Game State Info */}
       <div className="game-info">
-        <h3>Round {G.currentRound} - {G.roundPhase}</h3>
         {G.lastAction && <p>Last action: {G.lastAction}</p>}
       </div>
 
-      {/* Admin Controls - Now separate from player scope */}
+      {/* Admin Controls */}
       <AdminControls G={G} moves={moves} />
 
       {/* Player Info */}
@@ -118,45 +176,17 @@ const Board = ({ G, ctx, moves, playerID }) => {
       {/* Columns */}
       <div className="columns">
         {G.columns.map((column, columnIndex) => (
-          <div key={columnIndex} className="column">
-            {/* Crystal */}
-            <div className="crystal">
-              Crystal HP: {column.crystalHP}
-            </div>
-
-            {/* Display both players' cards */}
-            <div className="players-area">
-              {/* Current player's cards */}
-              <div className="player-cards">
-                <h4>Your Cards</h4>
-                {(column.cards[currentPlayerID] || []).map((card, idx) => (
-                  <Card
-                    key={card.id}
-                    card={card}
-                    isPlayable={false}
-                    style={{ marginTop: idx * 20 }}
-                  />
-                ))}
-              </div>
-
-              {/* Opponent's cards */}
-              <div className="opponent-cards">
-                <h4>Opponent's Cards</h4>
-                {(column.cards[opponentID] || []).map((card, idx) => (
-                  <Card
-                    key={card.id}
-                    card={card}
-                    isPlayable={false}
-                    style={{ marginTop: idx * 20 }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
+          <Column
+            key={columnIndex}
+            column={column}
+            columnIndex={columnIndex}
+            currentPlayerID={currentPlayerID}
+            opponentID={opponentID}
+          />
         ))}
       </div>
 
-      {/* Hand - shown even when committed, but cards are disabled */}
+      {/* Hand */}
       <div className="hand">
         <h3>Your Hand</h3>
         {currentPlayer.hand.map((card) => (
