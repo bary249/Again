@@ -347,3 +347,42 @@
   50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
+
+.column-combat-log {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 10px 0;
+  max-height: 200px;  /* Increased height */
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.column-log-entries {
+  font-size: 0.9em;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column-reverse;  /* Show most recent logs at the top */
+}
+
+.column-log-entry {
+  padding: 4px 8px;
+  margin: 2px 0;
+  border-radius: 4px;
+  white-space: pre-wrap;  /* Preserve formatting */
+}
+
+/* Make the scrollbar less obtrusive */
+.column-combat-log::-webkit-scrollbar {
+  width: 6px;
+}
+
+.column-combat-log::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.column-combat-log::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}

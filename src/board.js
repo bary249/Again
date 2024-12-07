@@ -82,14 +82,33 @@ const CentralCrystal = ({ crystal }) => (
 );
 
 // Column component
-const Column = ({ column, columnIndex, currentPlayerID, opponentID, moves, isCommitted }) => {
+const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, isCommitted }) => {
+  // State for viewing bottom cards
+  const [viewBottomCards, setViewBottomCards] = React.useState({
+    player: false,
+    opponent: false
+  });
+
   if (!column || !column.tiers || column.activeTier === undefined) return null;
   
   const activeTier = column.tiers[column.activeTier] || { cards: {} };
   
+  // Filter combat logs for this specific column
+  const columnLogs = (G?.combatLog || []).filter(log => 
+    log.includes(`Column ${columnIndex + 1}`) || 
+    log.includes(`column ${columnIndex + 1}`)
+  );
+
+  // Helper function to toggle card view
+  const toggleCardView = (section) => {
+    setViewBottomCards(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   return (
     <div className="column">
-      {/* Active Tier */}
       <div className="tier-container active-tier">
         <div className="tier-header">
           <div className="tier-title">Tier {column.activeTier + 1}</div>
@@ -100,29 +119,183 @@ const Column = ({ column, columnIndex, currentPlayerID, opponentID, moves, isCom
           {/* Current player's cards */}
           <div className="player-section">
             <h4 className="section-title">Your Cards</h4>
-            <div className="cards-container">
-              {((activeTier.cards || {})[currentPlayerID] || []).map((card, index) => (
-                <BoardCard
-                  key={card.id}
-                  card={card}
-                  isRemovable={!isCommitted && index === (activeTier.cards[currentPlayerID].length - 1)}
-                  onRemove={() => moves && moves.removeCardFromBoard(columnIndex)}
-                />
-              ))}
+            <div className="cards-stack" style={{ position: 'relative', height: '250px' }}>
+              {((activeTier.cards || {})[currentPlayerID] || []).map((card, index) => {
+                const isTop = index === 0;
+                const shouldShow = isTop !== viewBottomCards.player;
+                
+                return (
+                  <div 
+                    key={card.id} 
+                    style={{ 
+                      position: 'absolute',
+                      top: '0',
+                      left: '0',
+                      right: '0',
+                      zIndex: shouldShow ? 10 : 1,
+                      opacity: shouldShow ? 1 : 0,
+                      pointerEvents: shouldShow ? 'auto' : 'none',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <div className={`board-card ${isTop ? 'top-card' : 'bottom-card'}`}
+                         style={{
+                           border: isTop ? '3px solid #4CAF50' : '2px solid #9E9E9E',
+                           boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                           background: 'white',
+                           borderRadius: '8px',
+                           padding: '10px'
+                         }}>
+                      <div className="card-title">{card.name}</div>
+                      <div className="card-stats">
+                        Cost: {card.cost} | Tick: {card.tick}
+                        <br />
+                        HP: {card.hp} | DMG: {card.damage}
+                      </div>
+                      {card.lastTickActed > 0 && (
+                        <div className="card-tick">Last acted: Tick {card.lastTickActed}</div>
+                      )}
+                      {isTop && !isCommitted && (
+                        <button
+                          onClick={() => moves && moves.removeCardFromBoard(columnIndex)}
+                          className="remove-from-board-button"
+                        >
+                          Take Back
+                        </button>
+                      )}
+                      <div className="stack-position" style={{
+                        backgroundColor: isTop ? '#e8f5e9' : '#f5f5f5',
+                        padding: '4px',
+                        marginTop: '8px',
+                        borderRadius: '4px',
+                        textAlign: 'center'
+                      }}>
+                        {isTop ? '▲ TOP' : '▼ BOTTOM'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Toggle button for player cards */}
+              {((activeTier.cards || {})[currentPlayerID] || []).length > 1 && (
+                <button
+                  onClick={() => toggleCardView('player')}
+                  className="toggle-card-button"
+                  style={{
+                    position: 'absolute',
+                    bottom: '-30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    padding: '4px 12px',
+                    backgroundColor: '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  View {viewBottomCards.player ? 'Top' : 'Bottom'} Card
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Column Combat Log */}
+          <div className="column-combat-log">
+            <h4 className="log-title">Column {columnIndex + 1} Combat</h4>
+            <div className="column-log-entries">
+              {columnLogs.length > 0 ? (
+                columnLogs.map((log, index) => (
+                  <div 
+                    key={index} 
+                    className={`column-log-entry ${
+                      log.includes(`Player ${currentPlayerID}`) ? 'player-action' : 
+                      log.includes(`Player ${opponentID}`) ? 'opponent-action' : 
+                      'system-action'
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))
+              ) : (
+                <div className="no-combat-message">No combat yet in this column</div>
+              )}
             </div>
           </div>
 
           {/* Opponent's cards */}
           <div className="opponent-section">
             <h4 className="section-title">Opponent's Cards</h4>
-            <div className="cards-container">
-              {((activeTier.cards || {})[opponentID] || []).map((card) => (
-                <BoardCard
-                  key={card.id}
-                  card={card}
-                  isRemovable={false}
-                />
-              ))}
+            <div className="cards-stack" style={{ position: 'relative', height: '250px' }}>
+              {((activeTier.cards || {})[opponentID] || []).map((card, index) => {
+                const isTop = index === 0;
+                const shouldShow = isTop !== viewBottomCards.opponent;
+                
+                return (
+                  <div 
+                    key={card.id} 
+                    style={{ 
+                      position: 'absolute',
+                      top: '0',
+                      left: '0',
+                      right: '0',
+                      zIndex: shouldShow ? 10 : 1,
+                      opacity: shouldShow ? 1 : 0,
+                      pointerEvents: shouldShow ? 'auto' : 'none',
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <div className={`board-card ${isTop ? 'top-card' : 'bottom-card'}`}
+                         style={{
+                           border: isTop ? '3px solid #4CAF50' : '2px solid #9E9E9E',
+                           boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+                           background: 'white',
+                           borderRadius: '8px',
+                           padding: '10px'
+                         }}>
+                      <div className="card-title">{card.name}</div>
+                      <div className="card-stats">
+                        Cost: {card.cost} | Tick: {card.tick}
+                        <br />
+                        HP: {card.hp} | DMG: {card.damage}
+                      </div>
+                      {card.lastTickActed > 0 && (
+                        <div className="card-tick">Last acted: Tick {card.lastTickActed}</div>
+                      )}
+                      <div className="stack-position" style={{
+                        backgroundColor: isTop ? '#e8f5e9' : '#f5f5f5',
+                        padding: '4px',
+                        marginTop: '8px',
+                        borderRadius: '4px',
+                        textAlign: 'center'
+                      }}>
+                        {isTop ? '▲ TOP' : '▼ BOTTOM'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {/* Toggle button for opponent cards */}
+              {((activeTier.cards || {})[opponentID] || []).length > 1 && (
+                <button
+                  onClick={() => toggleCardView('opponent')}
+                  className="toggle-card-button"
+                  style={{
+                    position: 'absolute',
+                    bottom: '-30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    padding: '4px 12px',
+                    backgroundColor: '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  View {viewBottomCards.opponent ? 'Top' : 'Bottom'} Card
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -279,6 +452,7 @@ const Board = ({ G, ctx, moves, playerID }) => {
         {(G.columns || []).map((column, columnIndex) => (
           <Column
             key={columnIndex}
+            G={G}
             column={column}
             columnIndex={columnIndex}
             currentPlayerID={currentPlayerID}
