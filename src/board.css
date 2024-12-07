@@ -260,6 +260,7 @@
   background: white;
   border: 1px solid #ddd;
   border-radius: 8px;
+  scroll-behavior: smooth;
 }
 
 .log-title {
@@ -273,6 +274,7 @@
   padding: 10px;
   background: #f8f8f8;
   border-radius: 4px;
+  scroll-behavior: smooth;
 }
 
 .log-entry {
@@ -332,4 +334,16 @@
 
 .remove-from-board-button:active {
   background-color: #ef6c00;
+}
+
+.tick-active {
+  animation: pulse 1s infinite;
+  font-weight: bold;
+  color: #2196F3;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
 }

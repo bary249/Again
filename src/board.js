@@ -1,5 +1,5 @@
 // board.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import './board.css';
 
 // Card component for hand cards
@@ -137,7 +137,18 @@ const AdminControls = ({ G, moves }) => {
                            G.players['1'].committed && 
                            G.roundPhase === 'playing';
   
-  const canEndRound = G.roundPhase === 'combat';
+  const canEndRound = G.roundPhase === 'combat' && !G.isSimulating;
+
+  // Add ticker effect
+  useEffect(() => {
+    let tickInterval;
+    if (G.isSimulating) {
+      tickInterval = setInterval(() => {
+        moves.processTick();
+      }, 1000); // 1 second per tick
+    }
+    return () => clearInterval(tickInterval);
+  }, [G.isSimulating, moves]);
 
   return (
     <div className="admin-controls">
@@ -148,17 +159,19 @@ const AdminControls = ({ G, moves }) => {
         </div>
         <div className="round-info">
           <div>Round: {G.currentRound}</div>
-          <div>Current Tick: {G.currentTick}/5</div>
+          <div className={G.isSimulating ? 'tick-active' : ''}>
+            Current Tick: {G.currentTick}/5
+          </div>
           <div>Phase: {G.roundPhase}</div>
         </div>
       </div>
       <div className="admin-buttons">
         <button 
           onClick={() => moves.simulateRound()}
-          disabled={!canSimulateCombat}
+          disabled={!canSimulateCombat || G.isSimulating}
           className="simulate-button"
         >
-          Simulate Combat
+          {G.isSimulating ? 'Simulating...' : 'Simulate Combat'}
         </button>
         <button 
           onClick={() => moves.endRound()}
@@ -167,6 +180,19 @@ const AdminControls = ({ G, moves }) => {
         >
           Next Round
         </button>
+      </div>
+    </div>
+  );
+};
+
+// Add this new component near the top of the file
+const WinnerDisplay = ({ winner }) => {
+  if (!winner) return null;
+  
+  return (
+    <div className="winner-overlay">
+      <div className="winner-message">
+        🎉 Player {winner} Wins! 🎉
       </div>
     </div>
   );
@@ -192,6 +218,21 @@ const Board = ({ G, ctx, moves, playerID }) => {
 
   return (
     <div className="game-board">
+      {/* Add WinnerDisplay at the top */}
+      <WinnerDisplay winner={ctx.gameover?.winner} />
+
+      {/* Combat Log - Moved to top */}
+      <div className="combat-log">
+        <h4 className="log-title">Combat Log</h4>
+        <div className="log-entries">
+          {(G.combatLog || []).map((log, index) => (
+            <div key={index} className="log-entry">
+              {log}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Game State Info */}
       {G.lastAction && (
         <div className="game-info">
@@ -261,18 +302,6 @@ const Board = ({ G, ctx, moves, playerID }) => {
               isPlayable={!currentPlayer.committed}
               isRemovable={!currentPlayer.committed}
             />
-          ))}
-        </div>
-      </div>
-
-      {/* Combat Log */}
-      <div className="combat-log">
-        <h4 className="log-title">Combat Log</h4>
-        <div className="log-entries">
-          {(G.combatLog || []).map((log, index) => (
-            <div key={index} className="log-entry">
-              {log}
-            </div>
           ))}
         </div>
       </div>
