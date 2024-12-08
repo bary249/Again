@@ -259,13 +259,16 @@ const AdminControls = ({ G, moves }) => {
   
   const canEndRound = G.roundPhase === 'combat' && !G.isSimulating;
 
+  // Add bot controls
+  const canBotPlay = G.players['0'].committed && !G.players['1'].committed;
+
   // Add ticker effect
   useEffect(() => {
     let tickInterval;
     if (G.isSimulating) {
       tickInterval = setInterval(() => {
         moves.processTick();
-      }, 1000); // 1 second per tick
+      }, 1000);
     }
     return () => clearInterval(tickInterval);
   }, [G.isSimulating, moves]);
@@ -286,6 +289,21 @@ const AdminControls = ({ G, moves }) => {
         </div>
       </div>
       <div className="admin-buttons">
+        {/* Add Bot Controls */}
+        <button 
+          onClick={() => moves.botPlaySingle && moves.botPlaySingle()}
+          disabled={!canBotPlay}
+          className="bot-button"
+        >
+          Bot Play Single Move (2)
+        </button>
+        <button 
+          onClick={() => moves.botPlayAll && moves.botPlayAll()}
+          disabled={!canBotPlay}
+          className="bot-button"
+        >
+          Bot Play All Moves (3)
+        </button>
         <button 
           onClick={() => moves.simulateRound()}
           disabled={!canSimulateCombat || G.isSimulating}

@@ -386,3 +386,22 @@
   background: #888;
   border-radius: 3px;
 }
+
+.bot-button {
+  background-color: #4a90e2;
+  color: white;
+  padding: 8px 16px;
+  margin: 4px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.bot-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.bot-button:hover:not(:disabled) {
+  background-color: #357abd;
+}

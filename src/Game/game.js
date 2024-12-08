@@ -1,5 +1,6 @@
 // game.js
 import { generateDeck } from "./cards";
+import { Bot } from './bot';
 
 // Constants
 export const COLUMNS = 3;
@@ -176,12 +177,19 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 
 const playerMoves = {
   playCard: ({ G, ctx, playerID }, cardId, columnIndex) => {
-    if (G.players[playerID].committed) return;
+    console.log('playCard called with:', { G, ctx, playerID, cardId, columnIndex });
+    
+    if (!G || !G.players || !G.players[playerID]) {
+      console.error('Invalid game state in playCard:', { G, playerID });
+      return G;
+    }
+    
+    if (G.players[playerID].committed) return G;
     
     const player = G.players[playerID];
     const cardIndex = player.hand.findIndex(card => card.id === cardId);
     
-    if (cardIndex === -1) return;
+    if (cardIndex === -1) return G;
     
     const card = player.hand[cardIndex];
     const column = G.columns[columnIndex];
@@ -191,8 +199,8 @@ const playerMoves = {
     const tier = column.tiers[activeTier];
     
     // Validate move
-    if (player.ap < card.cost) return;
-    if ((tier.cards[playerID] || []).length >= MAX_CARDS_PER_TIER) return;
+    if (player.ap < card.cost) return G;
+    if ((tier.cards[playerID] || []).length >= MAX_CARDS_PER_TIER) return G;
     
     // Execute move
     player.ap -= card.cost;
@@ -207,10 +215,11 @@ const playerMoves = {
     tier.cards[playerID].push({ 
       ...card, 
       lastTickActed: 0,
-      initialPosition // Store the initial position
+      initialPosition
     });
     
     G.lastAction = `Player ${playerID} played ${card.name} to column ${columnIndex + 1}, tier ${activeTier + 1}`;
+    return G;
   },
 
   removeCard: ({ G, ctx, playerID }, cardId) => {
@@ -414,6 +423,127 @@ export const MyGame = {
     simulateRound: adminMoves.simulateRound,
     endRound: adminMoves.endRound,
     processTick: adminMoves.processTick,  // Add this new move
+    botPlaySingle: {
+      move: ({ G, ctx }) => {
+        console.group('botPlaySingle move');
+        console.log('🎮 Initial game state:', G);
+        console.log('🎯 Context:', ctx);
+        
+        // Create a clean copy of G to ensure it's serializable
+        const newG = JSON.parse(JSON.stringify(G));
+        
+        // Ensure we have valid context
+        if (!ctx || !ctx.currentPlayer) {
+          console.error('❌ Invalid context in botPlaySingle:', ctx);
+          console.groupEnd();
+          return newG;
+        }
+
+        // Create a serializable context object
+        const botContext = {
+          currentPlayer: "1",
+          playOrder: ctx.playOrder || ["0", "1"],
+          playOrderPos: ctx.playOrderPos || 0,
+          numPlayers: ctx.numPlayers || 2,
+          turn: ctx.turn || 1,
+          phase: ctx.phase || 'play'
+        };
+        console.log('🤖 Bot context:', botContext);
+
+        const moves = Bot.enumerate(newG, botContext);
+        console.log('📋 Available moves:', moves);
+
+        if (moves && moves.length > 0) {
+          const randomMove = moves[Math.floor(Math.random() * moves.length)];
+          console.log('🎲 Selected random move:', randomMove);
+
+          if (randomMove.move === 'playCard' && randomMove.args) {
+            console.log('🎴 Executing playCard move with args:', randomMove.args);
+            return MyGame.moves.playCard({ 
+              G: newG, 
+              ctx: botContext, 
+              playerID: "1" 
+            }, ...randomMove.args);
+          } else if (randomMove.move === 'commitPlayer') {
+            console.log('✅ Executing commit move');
+            return MyGame.moves.commitPlayer({ 
+              G: newG, 
+              ctx: botContext, 
+              playerID: "1" 
+            });
+          }
+        }
+        
+        console.log('❌ No moves available');
+        console.groupEnd();
+        return newG;
+      },
+      client: false
+    },
+
+    botPlayAll: {
+      move: ({ G, ctx }) => {
+        console.group('botPlayAll move');
+        console.log('🎮 Initial game state:', G);
+        console.log('🎯 Context:', ctx);
+
+        let newG = JSON.parse(JSON.stringify(G));
+        
+        if (!ctx || !ctx.currentPlayer) {
+          console.error('❌ Invalid context in botPlayAll:', ctx);
+          console.groupEnd();
+          return newG;
+        }
+
+        const botContext = {
+          currentPlayer: "1",
+          playOrder: ctx.playOrder || ["0", "1"],
+          playOrderPos: ctx.playOrderPos || 0,
+          numPlayers: ctx.numPlayers || 2,
+          turn: ctx.turn || 1,
+          phase: ctx.phase || 'play'
+        };
+        console.log('🤖 Bot context:', botContext);
+
+        let moveCount = 0;
+        while (!newG.players["1"].committed) {
+          console.log(`🔄 Move iteration ${moveCount + 1}`);
+          
+          const moves = Bot.enumerate(newG, botContext);
+          if (!moves || moves.length === 0) {
+            console.log('❌ No more moves available');
+            break;
+          }
+          
+          const randomMove = moves[Math.floor(Math.random() * moves.length)];
+          console.log('🎲 Selected random move:', randomMove);
+
+          if (randomMove.move === 'playCard' && randomMove.args) {
+            console.log('🎴 Executing playCard move with args:', randomMove.args);
+            newG = MyGame.moves.playCard({ 
+              G: newG, 
+              ctx: botContext, 
+              playerID: "1" 
+            }, ...randomMove.args);
+          } else if (randomMove.move === 'commitPlayer') {
+            console.log('✅ Executing commit move');
+            newG = MyGame.moves.commitPlayer({ 
+              G: newG, 
+              ctx: botContext, 
+              playerID: "1" 
+            });
+          }
+          
+          moveCount++;
+          console.log('🎮 Current game state after move:', newG);
+        }
+
+        console.log(`✨ Bot finished after ${moveCount} moves`);
+        console.groupEnd();
+        return newG;
+      },
+      client: false
+    }
   },
   turn: {
     minMoves: 0,
@@ -422,9 +552,18 @@ export const MyGame = {
   },
 
   endIf: ({ G }) => {
+    // Add defensive checks
+    if (!G || !G.centralCrystal) {
+      console.error('❌ Invalid game state in endIf:', G);
+      return;
+    }
+
     // Check if crystal is destroyed
     if (G.centralCrystal.hp <= 0) {
+      console.log('🏆 Game ended - Crystal destroyed by player:', G.centralCrystal.lastDamagedBy);
       return { winner: G.centralCrystal.lastDamagedBy };
     }
+
+    return undefined;
   },
 };
