@@ -326,22 +326,12 @@ const Board = ({ G, ctx, moves, playerID }) => {
   const currentPlayer = G.players[currentPlayerID] || { hand: [], ap: 0, gold: 0, committed: false };
   const opponentID = currentPlayerID === '0' ? '1' : '0';
 
-  const handlePlayCard = (cardId, columnIndex) => {
-    if (!moves || currentPlayer.committed) return;
-    moves.playCard(cardId, columnIndex);
-  };
-
-  const handleCommit = () => {
-    if (!moves || currentPlayer.committed) return;
-    moves.commitPlayer(currentPlayerID);
-  };
-
   return (
     <div className="game-board">
-      {/* Add WinnerDisplay at the top */}
+      {/* Winner Display */}
       <WinnerDisplay winner={ctx.gameover?.winner} />
 
-      {/* Combat Log - Moved to top */}
+      {/* Combat Log */}
       <div className="combat-log">
         <h4 className="log-title">Combat Log</h4>
         <div className="log-entries">
@@ -363,38 +353,12 @@ const Board = ({ G, ctx, moves, playerID }) => {
       {/* Admin Controls */}
       <AdminControls G={G} moves={moves} />
 
-      {/* Player Info */}
-      <div className="player-info">
-        <h3 className="player-title">Player {currentPlayerID}</h3>
-        <div className="player-stats">
-          <div>AP: {currentPlayer.ap}</div>
-          <div>Gold: {currentPlayer.gold}</div>
-          <div>Status: {currentPlayer.committed ? 'Committed' : 'Playing'}</div>
-        </div>
-        {!currentPlayer.committed ? (
-          <button 
-            onClick={handleCommit}
-            className="commit-button"
-          >
-            Commit Moves
-          </button>
-        ) : (
-          <button 
-            onClick={() => moves && moves.uncommitPlayer(currentPlayerID)}
-            disabled={G.roundPhase !== 'playing'}
-            className="uncommit-button"
-          >
-            Uncommit
-          </button>
-        )}
-      </div>
-
       {/* Central Crystal */}
       <div className="crystal-section">
         <CentralCrystal crystal={G.centralCrystal} />
       </div>
 
-      {/* Columns - Horizontal Layout */}
+      {/* Columns */}
       <div className="columns-container">
         {(G.columns || []).map((column, columnIndex) => (
           <Column
@@ -410,6 +374,32 @@ const Board = ({ G, ctx, moves, playerID }) => {
         ))}
       </div>
 
+      {/* Player Info - Moved above hand */}
+      <div className="player-info">
+        <h3 className="player-title">Player {currentPlayerID}</h3>
+        <div className="player-stats">
+          <div>AP: {currentPlayer.ap}</div>
+          <div>Gold: {currentPlayer.gold}</div>
+          <div>Status: {currentPlayer.committed ? 'Committed' : 'Playing'}</div>
+        </div>
+        {!currentPlayer.committed ? (
+          <button 
+            onClick={() => moves && moves.commitPlayer(currentPlayerID)}
+            className="commit-button"
+          >
+            Commit Moves
+          </button>
+        ) : (
+          <button 
+            onClick={() => moves && moves.uncommitPlayer(currentPlayerID)}
+            disabled={G.roundPhase !== 'playing'}
+            className="uncommit-button"
+          >
+            Uncommit
+          </button>
+        )}
+      </div>
+
       {/* Hand */}
       <div className="hand">
         <h3 className="hand-title">Your Hand</h3>
@@ -418,7 +408,7 @@ const Board = ({ G, ctx, moves, playerID }) => {
             <Card
               key={card.id}
               card={card}
-              onPlay={handlePlayCard}
+              onPlay={(cardId, columnIndex) => moves && moves.playCard(cardId, columnIndex)}
               onRemove={(cardId) => moves && moves.removeCard(cardId)}
               isPlayable={!currentPlayer.committed}
               isRemovable={!currentPlayer.committed}
