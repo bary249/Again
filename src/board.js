@@ -42,33 +42,6 @@ const Card = ({ card, onPlay, onRemove, isPlayable, isRemovable }) => {
   );
 };
 
-// Card component for board cards
-const BoardCard = ({ card, onRemove, isRemovable }) => {
-  if (!card) return null;
-  
-  return (
-    <div className="board-card">
-      <div className="card-title">{card.name}</div>
-      <div className="card-stats">
-        Cost: {card.cost} | Tick: {card.tick}
-        <br />
-        HP: {card.hp} | DMG: {card.damage}
-      </div>
-      {card.lastTickActed > 0 && (
-        <div className="card-tick">Last acted: Tick {card.lastTickActed}</div>
-      )}
-      {isRemovable && (
-        <button
-          onClick={onRemove}
-          className="remove-from-board-button"
-        >
-          Take Back
-        </button>
-      )}
-    </div>
-  );
-};
-
 // Central Crystal component
 const CentralCrystal = ({ crystal }) => (
   <div className="central-crystal">
@@ -93,12 +66,6 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
   
   const activeTier = column.tiers[column.activeTier] || { cards: {} };
   
-  // Filter combat logs for this specific column
-  const columnLogs = (G?.combatLog || []).filter(log => 
-    log.includes(`Column ${columnIndex + 1}`) || 
-    log.includes(`column ${columnIndex + 1}`)
-  );
-
   // Helper function to toggle card view
   const toggleCardView = (section) => {
     setViewBottomCards(prev => ({
@@ -196,29 +163,6 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
                 >
                   View {viewBottomCards.player ? 'Top' : 'Bottom'} Card
                 </button>
-              )}
-            </div>
-          </div>
-
-          {/* Column Combat Log */}
-          <div className="column-combat-log">
-            <h4 className="log-title">Column {columnIndex + 1} Combat</h4>
-            <div className="column-log-entries">
-              {columnLogs.length > 0 ? (
-                columnLogs.map((log, index) => (
-                  <div 
-                    key={index} 
-                    className={`column-log-entry ${
-                      log.includes(`Player ${currentPlayerID}`) ? 'player-action' : 
-                      log.includes(`Player ${opponentID}`) ? 'opponent-action' : 
-                      'system-action'
-                    }`}
-                  >
-                    {log}
-                  </div>
-                ))
-              ) : (
-                <div className="no-combat-message">No combat yet in this column</div>
               )}
             </div>
           </div>

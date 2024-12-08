@@ -69,6 +69,16 @@ const drawCards = (deck, count) => {
 
 const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
   const currentTick = G.currentTick;
+  const logMessage = (msg) => {
+    const formattedMsg = `[Round ${G.currentRound}] ${msg}`;
+    G.combatLog.push(formattedMsg);
+  };
+
+  // Helper to get current position (still needed for logic)
+  const getCardPosition = (cards, cardToFind) => {
+    const index = cards.indexOf(cardToFind);
+    return index === 0 ? "T" : "B";
+  };
 
   // Check if card should act this tick
   if (currentTick % card.tick !== 0 || card.lastTickActed === currentTick) return;
@@ -77,91 +87,85 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
   const activeTier = column.activeTier;
   const tier = column.tiers[activeTier];
   const targetCards = tier.cards[targetPlayerID] || [];
+  const playerCards = tier.cards[playerID] || [];
+
+  const currentPosition = getCardPosition(playerCards, card);
+
+  // Only allow top cards to act
+  if (currentPosition !== "T") return;
 
   if (targetCards.length > 0) {
-    const target = targetCards[0];  // Get top defending card
+    const target = targetCards[0];
     
-    // If both cards are acting on the same tick and neither has acted yet
     if (currentTick % target.tick === 0 && target.lastTickActed !== currentTick) {
-      // Handle simultaneous combat
       const cardDamage = card.damage;
       const targetDamage = target.damage;
-      const oldCardHP = card.hp;
-      const oldTargetHP = target.hp;
+      
+      logMessage(`Tick ${currentTick}, Column ${columnIndex + 1}, Tier ${activeTier + 1}:`);
+      logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}) (${cardDamage} DMG, ${card.hp} HP) clashes with`);
+      logMessage(`➤ P${targetPlayerID}'s ${target.name}(${target.initialPosition}) (${targetDamage} DMG, ${target.hp} HP)`);
       
       // Apply damage
       card.hp -= targetDamage;
       target.hp -= cardDamage;
       
-      // Record simultaneous combat exactly as shown
-      G.combatLog.push(
-        `Tick ${currentTick}: Column ${columnIndex + 1}, Tier ${activeTier + 1}: Simultaneous combat!`
-      );
-      G.combatLog.push(
-        `${card.name} (${cardDamage} dmg) vs ${target.name} (${targetDamage} dmg)`
-      );
-      G.combatLog.push(
-        `${card.name} HP: ${card.hp}, ${target.name} HP: ${target.hp}`
-      );
+      logMessage(`Results:`);
+      logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}): ${card.hp} HP remaining`);
+      logMessage(`➤ P${targetPlayerID}'s ${target.name}(${target.initialPosition}): ${target.hp} HP remaining`);
 
       // Check for destroyed cards
-      if (card.hp <= 0) {
+      if (card.hp <= 0 && target.hp <= 0) {
         tier.cards[playerID].shift();
-        G.combatLog.push(`${card.name} is destroyed!`);
-      }
-
-      if (target.hp <= 0) {
         targetCards.shift();
-        G.combatLog.push(`${target.name} is destroyed!`);
+        logMessage(`💥 Both cards were destroyed in the clash!`);
+      } else if (card.hp <= 0) {
+        tier.cards[playerID].shift();
+        logMessage(`💥 P${playerID}'s ${card.name}(${card.initialPosition}) was destroyed!`);
+      } else if (target.hp <= 0) {
+        targetCards.shift();
+        logMessage(`💥 P${targetPlayerID}'s ${target.name}(${target.initialPosition}) was destroyed!`);
+      } else {
+        logMessage(`⚔️ Both cards survived the clash!`);
       }
 
       card.lastTickActed = currentTick;
       target.lastTickActed = currentTick;
     } else {
       // Normal non-simultaneous combat
-      const oldTargetHP = target.hp;
       target.hp -= card.damage;
       
-      G.combatLog.push(
-        `Tick ${currentTick}: Column ${columnIndex + 1}, Tier ${activeTier + 1}: ${card.name} deals ${card.damage} damage to ${target.name}`
-      );
+      logMessage(`Tick ${currentTick}, Column ${columnIndex + 1}, Tier ${activeTier + 1}:`);
+      logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}) attacks P${targetPlayerID}'s ${target.name}(${target.initialPosition})`);
+      logMessage(`➤ Deals ${card.damage} damage (${target.hp + card.damage} HP ➜ ${target.hp} HP)`);
 
       if (target.hp <= 0) {
         targetCards.shift();
-        G.combatLog.push(`${target.name} is destroyed!`);
+        logMessage(`💥 P${targetPlayerID}'s ${target.name}(${target.initialPosition}) was destroyed!`);
       }
     }
 
     // Check if tier is now empty for either player
     if (targetCards.length === 0 && tier.cards[playerID].length > 0) {
-      G.combatLog.push(
-        `Player ${playerID} has won tier ${activeTier + 1} in column ${columnIndex + 1}!`
-      );
+      logMessage(`Player ${playerID} has won tier ${activeTier + 1} in column ${columnIndex + 1}!`);
       column.controllingPlayer = playerID;
 
       // If this was the last tier, damage the crystal
       if (activeTier === TIERS - 1) {
         G.centralCrystal.hp -= card.damage;
         G.centralCrystal.lastDamagedBy = playerID;
-        G.combatLog.push(
-          `Player ${playerID} deals ${card.damage} damage to the central crystal! Crystal HP: ${G.centralCrystal.hp}`
-        );
+        logMessage(`Player ${playerID} deals ${card.damage} damage to the central crystal! Crystal HP: ${G.centralCrystal.hp}`);
       } else {
         // If there's another tier, advance to it
         tier.cards = { 0: [], 1: [] };
         column.activeTier++;
-        G.combatLog.push(
-          `Combat advances to tier ${column.activeTier + 1} in column ${columnIndex + 1}`
-        );
+        logMessage(`Combat advances to tier ${column.activeTier + 1} in column ${columnIndex + 1}`);
       }
     }
   } else if (activeTier === TIERS - 1) {
     // Only damage crystal if at the last tier and no opposing cards
     G.centralCrystal.hp -= card.damage;
     G.centralCrystal.lastDamagedBy = playerID;
-    G.combatLog.push(
-      `Tick ${currentTick}: Column ${columnIndex + 1}, Tier ${activeTier + 1}: ${card.name} deals ${card.damage} damage to central crystal (HP: ${G.centralCrystal.hp})`
-    );
+    logMessage(`Tick ${currentTick}, Column ${columnIndex + 1}, Tier ${activeTier + 1}: ${card.name} deals ${card.damage} damage to central crystal (HP: ${G.centralCrystal.hp})`);
   }
 
   card.lastTickActed = currentTick;
@@ -198,7 +202,14 @@ const playerMoves = {
       tier.cards[playerID] = [];
     }
     
-    tier.cards[playerID].push({ ...card, lastTickActed: 0 });
+    // Add initialPosition property when placing the card
+    const initialPosition = tier.cards[playerID].length === 0 ? "T" : "B";
+    tier.cards[playerID].push({ 
+      ...card, 
+      lastTickActed: 0,
+      initialPosition // Store the initial position
+    });
+    
     G.lastAction = `Player ${playerID} played ${card.name} to column ${columnIndex + 1}, tier ${activeTier + 1}`;
   },
 
@@ -239,12 +250,12 @@ const playerMoves = {
     G.lastAction = `Player ${playerID} took back ${card.name} from column ${columnIndex + 1}`;
   },
 
-  commitPlayer: ({ G, ctx }, playerID) => {
+  commitPlayer: ({ G }, playerID) => {
     G.players[playerID].committed = true;
     G.lastAction = `Player ${playerID} committed their moves`;
   },
 
-  uncommitPlayer: ({ G, ctx }, playerID) => {
+  uncommitPlayer: ({ G }, playerID) => {
     if (G.roundPhase !== 'playing') return;
     G.players[playerID].committed = false;
     G.lastAction = `Player ${playerID} uncommitted their moves`;
@@ -252,7 +263,7 @@ const playerMoves = {
 };
 // Admin moves
 const adminMoves = {
-  simulateRound: ({ G, ctx }) => {
+  simulateRound: ({ G }) => {
     if (
       !G.players["0"].committed ||
       !G.players["1"].committed ||
@@ -263,11 +274,11 @@ const adminMoves = {
 
     G.roundPhase = "combat";
     G.combatLog.push(`--- Round ${G.currentRound} Combat ---`);
-    G.currentTick = 1;  // Reset to 1
-    G.isSimulating = true;  // Add this flag
+    G.currentTick = 1;
+    G.isSimulating = true;
   },
 
-  processTick: ({ G, ctx }) => {
+  processTick: ({ G }) => {
     if (!G.isSimulating || G.currentTick > MAX_TICKS_PER_ROUND) {
       G.isSimulating = false;
       return;
@@ -297,7 +308,7 @@ const adminMoves = {
     }
   },
 
-  endRound: ({ G, ctx }) => {
+  endRound: ({ G }) => {
     if (G.roundPhase !== "combat") return;
 
     // Check for unopposed cards before ending round
