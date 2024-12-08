@@ -56,23 +56,49 @@ const CentralCrystal = ({ crystal }) => (
 
 // Column component
 const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, isCommitted }) => {
-  // State for viewing bottom cards
-  const [viewBottomCards, setViewBottomCards] = React.useState({
-    player: false,
-    opponent: false
+  // State for active cards
+  const [activeCard, setActiveCard] = React.useState({
+    player: 'top',
+    opponent: 'top'
   });
 
   if (!column || !column.tiers || column.activeTier === undefined) return null;
   
   const activeTier = column.tiers[column.activeTier] || { cards: {} };
-  
-  // Helper function to toggle card view
+
+  // Helper function to toggle card view on click
   const toggleCardView = (section) => {
-    setViewBottomCards(prev => ({
+    setActiveCard(prev => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: prev[section] === 'top' ? 'bottom' : 'top'
     }));
   };
+
+  // Get the current sequence of logs
+  const columnLogs = Array.isArray(G?.combatLog) 
+    ? G.combatLog.filter((log, index, array) => {
+        // If it's a tick or round marker, always include it
+        if (log.startsWith('---') || log.startsWith('===')) {
+          return true;
+        }
+        
+        // If this log mentions the column directly, it belongs here
+        if (log.includes(`Column ${columnIndex + 1}`)) {
+          return true;
+        }
+
+        // For other logs, check if they belong to the current column's sequence
+        // by looking at the previous column declaration
+        for (let i = index; i >= 0; i--) {
+          const previousLog = array[i];
+          if (previousLog.includes('Column')) {
+            return previousLog.includes(`Column ${columnIndex + 1}`);
+          }
+        }
+        
+        return false;
+      })
+    : [];
 
   return (
     <div className="column">
@@ -89,19 +115,21 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
             <div className="cards-stack" style={{ position: 'relative', height: '250px' }}>
               {((activeTier.cards || {})[currentPlayerID] || []).map((card, index) => {
                 const isTop = index === 0;
-                const shouldShow = isTop !== viewBottomCards.player;
+                const isActive = (isTop && activeCard.player === 'top') || 
+                               (!isTop && activeCard.player === 'bottom');
                 
                 return (
                   <div 
                     key={card.id} 
+                    onClick={() => toggleCardView('player')}
                     style={{ 
                       position: 'absolute',
-                      top: '0',
+                      top: isTop ? '0' : '125px', // Bottom card shows 50% below top card
                       left: '0',
                       right: '0',
-                      zIndex: shouldShow ? 10 : 1,
-                      opacity: shouldShow ? 1 : 0,
-                      pointerEvents: shouldShow ? 'auto' : 'none',
+                      zIndex: isActive ? 10 : 1,
+                      opacity: isActive ? 1 : 0.1,
+                      cursor: 'pointer',
                       transition: 'all 0.3s ease'
                     }}
                   >
@@ -124,7 +152,10 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
                       )}
                       {isTop && !isCommitted && (
                         <button
-                          onClick={() => moves && moves.removeCardFromBoard(columnIndex)}
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent card toggle
+                            moves && moves.removeCardFromBoard(columnIndex);
+                          }}
                           className="remove-from-board-button"
                         >
                           Take Back
@@ -143,27 +174,18 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
                   </div>
                 );
               })}
-              {/* Toggle button for player cards */}
-              {((activeTier.cards || {})[currentPlayerID] || []).length > 1 && (
-                <button
-                  onClick={() => toggleCardView('player')}
-                  className="toggle-card-button"
-                  style={{
-                    position: 'absolute',
-                    bottom: '-30px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    padding: '4px 12px',
-                    backgroundColor: '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  View {viewBottomCards.player ? 'Top' : 'Bottom'} Card
-                </button>
-              )}
+            </div>
+          </div>
+
+          {/* Column Combat Log */}
+          <div className="column-combat-log">
+            <h4 className="log-title">Column {columnIndex + 1} Combat</h4>
+            <div className="column-log-entries">
+              {columnLogs.map((log, index) => (
+                <div key={index} className="column-log-entry">
+                  {log}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -173,19 +195,21 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
             <div className="cards-stack" style={{ position: 'relative', height: '250px' }}>
               {((activeTier.cards || {})[opponentID] || []).map((card, index) => {
                 const isTop = index === 0;
-                const shouldShow = isTop !== viewBottomCards.opponent;
+                const isActive = (isTop && activeCard.opponent === 'top') || 
+                               (!isTop && activeCard.opponent === 'bottom');
                 
                 return (
                   <div 
                     key={card.id} 
+                    onClick={() => toggleCardView('opponent')}
                     style={{ 
                       position: 'absolute',
-                      top: '0',
+                      top: isTop ? '0' : '125px',
                       left: '0',
                       right: '0',
-                      zIndex: shouldShow ? 10 : 1,
-                      opacity: shouldShow ? 1 : 0,
-                      pointerEvents: shouldShow ? 'auto' : 'none',
+                      zIndex: isActive ? 10 : 1,
+                      opacity: isActive ? 1 : 0.1,
+                      cursor: 'pointer',
                       transition: 'all 0.3s ease'
                     }}
                   >
@@ -219,27 +243,6 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
                   </div>
                 );
               })}
-              {/* Toggle button for opponent cards */}
-              {((activeTier.cards || {})[opponentID] || []).length > 1 && (
-                <button
-                  onClick={() => toggleCardView('opponent')}
-                  className="toggle-card-button"
-                  style={{
-                    position: 'absolute',
-                    bottom: '-30px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    padding: '4px 12px',
-                    backgroundColor: '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  View {viewBottomCards.opponent ? 'Top' : 'Bottom'} Card
-                </button>
-              )}
             </div>
           </div>
         </div>
