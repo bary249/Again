@@ -1,6 +1,23 @@
 // board.js
 import React, { useEffect } from 'react';
 import './board.css';
+import { EQUATOR, P0_BASE, P1_BASE } from './Game/game.js';  // Import from game.js instead
+
+const getRegionName = (tierIndex, columnIndex) => {
+  const section = columnIndex === 0 ? "North" : 
+                 columnIndex === 1 ? "Center" : "South";
+                 
+  switch(tierIndex) {
+    case EQUATOR:
+      return `Equator ${section} (Common)`;
+    case P0_BASE:
+      return `P0's ${section} Base`;
+    case P1_BASE:
+      return `P1's ${section} Base`;
+    default:
+      return "Unknown Region";
+  }
+};
 
 // Card component for hand cards
 const Card = ({ card, onPlay, onRemove, isPlayable, isRemovable }) => {
@@ -43,9 +60,11 @@ const Card = ({ card, onPlay, onRemove, isPlayable, isRemovable }) => {
 };
 
 // Central Crystal component
-const CentralCrystal = ({ crystal }) => (
-  <div className="central-crystal">
-    <div className="crystal-hp">Central Crystal HP: {crystal.hp}</div>
+const Crystal = ({ crystal, playerID, isOpponent }) => (
+  <div className={`crystal ${isOpponent ? 'opponent-crystal' : 'player-crystal'}`}>
+    <div className="crystal-hp">
+      {isOpponent ? "Enemy" : "Your"} Crystal HP: {crystal.hp}
+    </div>
     {crystal.lastDamagedBy !== null && (
       <div className="crystal-info">
         Last damaged by: Player {crystal.lastDamagedBy}
@@ -104,7 +123,9 @@ const Column = ({ G, column, columnIndex, currentPlayerID, opponentID, moves, is
     <div className="column">
       <div className="tier-container active-tier">
         <div className="tier-header">
-          <div className="tier-title">Tier {column.activeTier + 1}</div>
+          <div className="tier-title">
+            {getRegionName(column.activeTier, columnIndex)}
+          </div>
           <span className="active-badge">Active</span>
         </div>
         
@@ -258,9 +279,8 @@ const AdminControls = ({ G, moves }) => {
                            G.roundPhase === 'playing';
   
   const canEndRound = G.roundPhase === 'combat' && !G.isSimulating;
-
-  // Add bot controls
   const canBotPlay = G.players['0'].committed && !G.players['1'].committed;
+  const canAutoRun = !G.players['0'].committed && !G.players['1'].committed;
 
   // Add ticker effect
   useEffect(() => {
@@ -289,20 +309,28 @@ const AdminControls = ({ G, moves }) => {
         </div>
       </div>
       <div className="admin-buttons">
-        {/* Add Bot Controls */}
+        {/* Add Auto-Run button */}
         <button 
-          onClick={() => moves.botPlaySingle && moves.botPlaySingle()}
+          onClick={() => moves.autoRun()}
+          disabled={!canAutoRun}
+          className="auto-run-button"
+        >
+          Auto-Run Round
+        </button>
+
+        <button 
+          onClick={() => moves.botPlaySingle()}
           disabled={!canBotPlay}
           className="bot-button"
         >
-          Bot Play Single Move (2)
+          Bot Play Single Move
         </button>
         <button 
-          onClick={() => moves.botPlayAll && moves.botPlayAll()}
+          onClick={() => moves.botPlayAll()}
           disabled={!canBotPlay}
           className="bot-button"
         >
-          Bot Play All Moves (3)
+          Bot Play All Moves
         </button>
         <button 
           onClick={() => moves.simulateRound()}
@@ -346,53 +374,64 @@ const Board = ({ G, ctx, moves, playerID }) => {
 
   return (
     <div className="game-board">
-      {/* Winner Display */}
       <WinnerDisplay winner={ctx.gameover?.winner} />
+      
+      {/* Admin Controls */}
+      <AdminControls G={G} moves={moves} />
 
       {/* Combat Log */}
       <div className="combat-log">
         <h4 className="log-title">Combat Log</h4>
         <div className="log-entries">
           {(G.combatLog || []).map((log, index) => (
-            <div key={index} className="log-entry">
-              {log}
-            </div>
+            <div key={index} className="log-entry">{log}</div>
           ))}
         </div>
       </div>
 
-      {/* Game State Info */}
+      {/* Last Action */}
       {G.lastAction && (
-        <div className="game-info">
-          Last action: {G.lastAction}
-        </div>
+        <div className="game-info">Last action: {G.lastAction}</div>
       )}
 
-      {/* Admin Controls */}
-      <AdminControls G={G} moves={moves} />
-
-      {/* Central Crystal */}
-      <div className="crystal-section">
-        <CentralCrystal crystal={G.centralCrystal} />
-      </div>
-
-      {/* Columns */}
-      <div className="columns-container">
-        {(G.columns || []).map((column, columnIndex) => (
-          <Column
-            key={columnIndex}
-            G={G}
-            column={column}
-            columnIndex={columnIndex}
-            currentPlayerID={currentPlayerID}
-            opponentID={opponentID}
-            moves={moves}
-            isCommitted={currentPlayer.committed}
+      {/* Main Board Area */}
+      <div className="main-board-area">
+        {/* Opponent Crystal */}
+        <div className="opponent-crystal-section">
+          <Crystal 
+            crystal={G.crystals[opponentID]} 
+            playerID={opponentID}
+            isOpponent={true}
           />
-        ))}
+        </div>
+
+        {/* Columns */}
+        <div className="columns-container">
+          {(G.columns || []).map((column, columnIndex) => (
+            <Column
+              key={columnIndex}
+              G={G}
+              column={column}
+              columnIndex={columnIndex}
+              currentPlayerID={currentPlayerID}
+              opponentID={opponentID}
+              moves={moves}
+              isCommitted={currentPlayer.committed}
+            />
+          ))}
+        </div>
+
+        {/* Player Crystal */}
+        <div className="player-crystal-section">
+          <Crystal 
+            crystal={G.crystals[currentPlayerID]} 
+            playerID={currentPlayerID}
+            isOpponent={false}
+          />
+        </div>
       </div>
 
-      {/* Player Info - Moved above hand */}
+      {/* Player Control Panel */}
       <div className="player-info">
         <h3 className="player-title">Player {currentPlayerID}</h3>
         <div className="player-stats">
@@ -418,7 +457,7 @@ const Board = ({ G, ctx, moves, playerID }) => {
         )}
       </div>
 
-      {/* Hand */}
+      {/* Player Hand */}
       <div className="hand">
         <h3 className="hand-title">Your Hand</h3>
         <div className="hand-cards">
