@@ -244,6 +244,10 @@ const playerMoves = {
     
     const card = newG.players[playerID].hand[cardIndex];
     
+    // Set the initial position based on current cards in the tier
+    const currentTierCards = column.tiers[activeTier].cards[playerID] || [];
+    card.initialPosition = currentTierCards.length === 0 ? "T" : "B";
+    
     // Check if player has enough AP
     if (newG.players[playerID].ap < card.cost) {
       console.log('Not enough AP');
@@ -381,10 +385,10 @@ const adminMoves = {
       console.log(`Processing column ${columnIndex}:`, column);
       
       if (tier) {
-        // Reset lastTickActed for all cards in the tier
+        // Reset lastTickActed for all cards
         Object.values(tier.cards).forEach(playerCards => {
           playerCards.forEach(card => {
-            card.lastTickActed = null;  // Reset the lastTickActed property
+            card.lastTickActed = null;
           });
         });
 
@@ -393,23 +397,24 @@ const adminMoves = {
 
         console.log(`Column ${columnIndex} cards - P0: ${player0Cards}, P1: ${player1Cards}`);
 
-        if (player0Cards > 0 && player1Cards === 0) {
-          if (activeTier === EQUATOR) {
+        // Check for lane control and pushing
+        if (activeTier === EQUATOR) {
+          if (player0Cards > 0 && player1Cards === 0) {
             column.controllingPlayer = "0";
             newG.combatLog.push(
               `Column ${columnIndex + 1}: P0 wins Equator - pushing to P1's Base`
             );
-            tier.cards = { 0: [], 1: [] };
             column.activeTier = P1_BASE;
-          }
-        } else if (player1Cards > 0 && player0Cards === 0) {
-          if (activeTier === EQUATOR) {
+          } else if (player1Cards > 0 && player0Cards === 0) {
             column.controllingPlayer = "1";
             newG.combatLog.push(
               `Column ${columnIndex + 1}: P1 wins Equator - pushing to P0's Base`
             );
-            tier.cards = { 0: [], 1: [] };
             column.activeTier = P0_BASE;
+          }
+          // Clear the current tier's cards after pushing
+          if (player0Cards !== player1Cards) {
+            tier.cards = { 0: [], 1: [] };
           }
         }
       }
@@ -694,7 +699,7 @@ export const MyGame = {
           turn: ctx.turn || 1,
           phase: ctx.phase || 'play'
         };
-        console.log('��� Bot context:', botContext);
+        console.log('🤖 Bot context:', botContext);
 
         let moveCount = 0;
         while (!newG.players["1"].committed) {
