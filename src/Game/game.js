@@ -206,16 +206,26 @@ const playerMoves = {
       return INVALID_MOVE;
     }
 
-    // Make sure the tier exists
+    // Get the active tier index
     const activeTier = column.activeTier;
+    
+    // Initialize the tier structure if it doesn't exist
     if (!column.tiers[activeTier]) {
-      console.log('Creating new tier');
+      console.log('Creating new tier at', activeTier);
       column.tiers[activeTier] = {
         cards: {
           0: [],
           1: []
         }
       };
+    }
+
+    // Ensure the cards arrays exist for both players
+    if (!column.tiers[activeTier].cards["0"]) {
+      column.tiers[activeTier].cards["0"] = [];
+    }
+    if (!column.tiers[activeTier].cards["1"]) {
+      column.tiers[activeTier].cards["1"] = [];
     }
 
     // Find the card in the player's hand
@@ -229,7 +239,7 @@ const playerMoves = {
     const card = newG.players[playerID].hand[cardIndex];
     
     // Set the initial position based on current cards in the tier
-    const currentTierCards = column.tiers[activeTier].cards[playerID] || [];
+    const currentTierCards = column.tiers[activeTier].cards[playerID];
     card.initialPosition = currentTierCards.length === 0 ? "T" : "B";
     
     // Check if player has enough AP
@@ -243,11 +253,7 @@ const playerMoves = {
     newG.players[playerID].hand.splice(cardIndex, 1);
     newG.players[playerID].ap -= card.cost;
     
-    // Ensure the cards array exists for this player
-    if (!column.tiers[activeTier].cards[playerID]) {
-      column.tiers[activeTier].cards[playerID] = [];
-    }
-    
+    // Add card to the active tier
     column.tiers[activeTier].cards[playerID].push(card);
     
     newG.lastAction = `Player ${playerID} played ${card.name} in column ${columnIndex + 1}`;
@@ -317,36 +323,69 @@ const adminMoves = {
     newG.isSimulating = true;
     newG.currentTick = 1;
     newG.lastAction = "Combat simulation started";
+
+    // Process all ticks immediately
+    while (newG.currentTick <= MAX_TICKS_PER_ROUND && newG.isSimulating) {
+        adminMoves.processTick({ G: newG });
+    }
+
     return newG;
   },
 
   processTick: ({ G }) => {
     if (!G.isSimulating || G.currentTick > MAX_TICKS_PER_ROUND) {
-      G.isSimulating = false;
-      return;
+        G.isSimulating = false;
+        return;
     }
 
     G.combatLog.push(`--- Tick ${G.currentTick} ---`);
 
     // Process each column
     G.columns.forEach((column, columnIndex) => {
-      const activeTier = column.activeTier;
-      const tier = column.tiers[activeTier];
+        const activeTier = column.activeTier;
+        const tier = column.tiers[activeTier];
+        
+        if (!tier) return;
 
-      // Process player 0's cards first
-      (tier.cards["0"] || []).forEach((card) => {
-        processCardAction(G, card, columnIndex, "0", "1");
-      });
+        // Process player 0's cards first
+        (tier.cards["0"] || []).forEach((card) => {
+            processCardAction(G, card, columnIndex, "0", "1");
+        });
 
-      // Then process player 1's cards
-      (tier.cards["1"] || []).forEach((card) => {
-        processCardAction(G, card, columnIndex, "1", "0");
-      });
+        // Then process player 1's cards
+        (tier.cards["1"] || []).forEach((card) => {
+            processCardAction(G, card, columnIndex, "1", "0");
+        });
+
+        // Process crystal damage for cards in bases
+        if (activeTier === P0_BASE || activeTier === P1_BASE) {
+            const crystalID = activeTier === P0_BASE ? "0" : "1";
+            const attackingPlayerID = activeTier === P0_BASE ? "1" : "0";
+            
+            // Check attacking cards
+            (tier.cards[attackingPlayerID] || []).forEach(card => {
+                if (G.currentTick % card.tick === 0 && card.lastTickActed !== G.currentTick) {
+                    G.crystals[crystalID].hp -= card.damage;
+                    G.crystals[crystalID].lastDamagedBy = attackingPlayerID;
+                    G.combatLog.push(`P${attackingPlayerID}'s ${card.name} deals ${card.damage} damage to P${crystalID}'s crystal! (Crystal HP: ${G.crystals[crystalID].hp})`);
+                    
+                    card.lastTickActed = G.currentTick;
+                    
+                    // Check for game over
+                    if (G.crystals[crystalID].hp <= 0) {
+                        G.isSimulating = false;
+                        G.gameOver = true;
+                        G.winner = attackingPlayerID;
+                        G.lastAction = `Game Over: Player ${attackingPlayerID} wins by destroying Player ${crystalID}'s crystal!`;
+                    }
+                }
+            });
+        }
     });
 
     G.currentTick++;
     if (G.currentTick > MAX_TICKS_PER_ROUND) {
-      G.isSimulating = false;
+        G.isSimulating = false;
     }
   },
 
@@ -395,9 +434,14 @@ const adminMoves = {
                     console.log('P0 controls Equator - pushing to P1 Base');
                     column.controllingPlayer = "0";
                     
-                    // Initialize target tier if needed
-                    if (!column.tiers[P1_BASE].cards["0"]) {
-                        column.tiers[P1_BASE].cards["0"] = [];
+                    // Initialize the target tier if it doesn't exist
+                    if (!column.tiers[P1_BASE]) {
+                        column.tiers[P1_BASE] = {
+                            cards: {
+                                "0": [],
+                                "1": []
+                            }
+                        };
                     }
                     
                     // Get surviving cards and log them
@@ -425,9 +469,14 @@ const adminMoves = {
                     console.log('P1 controls Equator - pushing to P0 Base');
                     column.controllingPlayer = "1";
                     
-                    // Initialize target tier if needed
-                    if (!column.tiers[P0_BASE].cards["1"]) {
-                        column.tiers[P0_BASE].cards["1"] = [];
+                    // Initialize the target tier if it doesn't exist
+                    if (!column.tiers[P0_BASE]) {
+                        column.tiers[P0_BASE] = {
+                            cards: {
+                                "0": [],
+                                "1": []
+                            }
+                        };
                     }
                     
                     // Get surviving cards and log them
