@@ -168,8 +168,11 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
     } else if ((activeTier === P0_BASE && playerID === "1") || 
                (activeTier === P1_BASE && playerID === "0")) {
         
+        if (G.gameOver) return;
+        
         if (targetCards.length === 0 && 
             currentTick % card.tick === 0 && 
+            card.lastTickActed !== currentTick && 
             card.ticksInBase > 0) {
             
             const crystalID = activeTier === P0_BASE ? "0" : "1";
@@ -184,6 +187,8 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
                 ticksInBase: card.ticksInBase
             });
             
+            card.lastTickActed = currentTick;
+            
             G.crystals[crystalID].hp -= card.damage;
             
             console.log(`Crystal HP after attack: ${G.crystals[crystalID].hp}`);
@@ -191,14 +196,13 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
             G.crystals[crystalID].lastDamagedBy = playerID;
             G.combatLog.push(`P${playerID}'s ${card.name} deals ${card.damage} damage to P${crystalID}'s crystal! (Crystal HP: ${G.crystals[crystalID].hp})`);
             
-            card.lastTickActed = currentTick;
-            
             if (G.crystals[crystalID].hp <= 0) {
                 console.log(`Game Over: Crystal ${crystalID} destroyed by ${card.name}!`);
                 G.isSimulating = false;
                 G.gameOver = true;
                 G.winner = playerID;
                 G.lastAction = `Game Over: Player ${playerID} wins by destroying Player ${crystalID}'s crystal!`;
+                return;
             }
         }
     }
@@ -215,77 +219,82 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 
 const playerMoves = {
   playCard: ({ G, playerID }, cardId, columnIndex) => {
+    if (checkGameOver(G)) return G;
+    
     console.group('playCard');
+    const newG = JSON.parse(JSON.stringify(G));
     console.log('Initial state:', G);
     console.log('Playing card:', cardId, 'to column:', columnIndex);
     
-    const newG = JSON.parse(JSON.stringify(G));
+    // Get the active tier and cards before any changes
+    const column = newG.columns[columnIndex];
+    const activeTier = column?.activeTier;
+    const currentCards = column?.tiers[activeTier]?.cards[playerID] || [];
+    
+    console.log(`Current cards in tier ${activeTier} for player ${playerID}:`, currentCards);
+    
+    // Strict validation checks
+    if (!column) {
+        console.error('Invalid column');
+        console.groupEnd();
+        return INVALID_MOVE;
+    }
     
     if (newG.players[playerID].committed) {
-      console.log('Player committed, invalid move');
-      console.groupEnd();
-      return INVALID_MOVE;
+        console.log('Player already committed');
+        console.groupEnd();
+        return INVALID_MOVE;
     }
     
-    const column = newG.columns[columnIndex];
-    if (!column) {
-      console.error('Invalid column');
-      console.groupEnd();
-      return INVALID_MOVE;
+    if (currentCards.length >= 2) {
+        console.log(`BLOCKED: Already has ${currentCards.length} cards in tier ${activeTier}`);
+        console.groupEnd();
+        return INVALID_MOVE;
     }
-
-    // Get the active tier index
-    const activeTier = column.activeTier;
     
-    // Initialize the tier structure if it doesn't exist
+    // Initialize tier if needed
     if (!column.tiers[activeTier]) {
-      console.log('Creating new tier at', activeTier);
-      column.tiers[activeTier] = {
-        cards: {
-          0: [],
-          1: []
-        }
-      };
+        console.log('Creating new tier at', activeTier);
+        column.tiers[activeTier] = {
+            cards: {
+                0: [],
+                1: []
+            }
+        };
     }
-
-    // Ensure the cards arrays exist for both players
-    if (!column.tiers[activeTier].cards["0"]) {
-      column.tiers[activeTier].cards["0"] = [];
-    }
-    if (!column.tiers[activeTier].cards["1"]) {
-      column.tiers[activeTier].cards["1"] = [];
-    }
-
-    // Find the card in the player's hand
+    
+    // Find and validate card
     const cardIndex = newG.players[playerID].hand.findIndex(c => c.id === cardId);
     if (cardIndex === -1) {
-      console.error('Card not found in hand');
-      console.groupEnd();
-      return INVALID_MOVE;
+        console.error('Card not found in hand');
+        console.groupEnd();
+        return INVALID_MOVE;
     }
     
     const card = newG.players[playerID].hand[cardIndex];
     
-    // Set the initial position based on current cards in the tier
-    const currentTierCards = column.tiers[activeTier].cards[playerID];
-    card.initialPosition = currentTierCards.length === 0 ? "T" : "B";
-    
-    // Check if player has enough AP
+    // Check AP
     if (newG.players[playerID].ap < card.cost) {
-      console.log('Not enough AP');
-      console.groupEnd();
-      return INVALID_MOVE;
+        console.log('Not enough AP');
+        console.groupEnd();
+        return INVALID_MOVE;
     }
-
-    // Remove card from hand and add to column
+    
+    // Process the move
     newG.players[playerID].hand.splice(cardIndex, 1);
     newG.players[playerID].ap -= card.cost;
-    
-    // Add card to the active tier
     column.tiers[activeTier].cards[playerID].push(card);
     
-    newG.lastAction = `Player ${playerID} played ${card.name} in column ${columnIndex + 1}`;
+    // Final validation
+    const finalCards = column.tiers[activeTier].cards[playerID];
+    console.log(`After play: ${finalCards.length} cards in tier`);
+    if (finalCards.length > 2) {
+        console.error('ERROR: Somehow exceeded card limit!');
+        console.groupEnd();
+        return INVALID_MOVE;
+    }
     
+    newG.lastAction = `Player ${playerID} played ${card.name}(${cardId}) in column ${columnIndex}`;
     console.log('Final state:', newG);
     console.groupEnd();
     return newG;
@@ -550,10 +559,17 @@ const adminMoves = {
     newG.currentRound += 1;
     newG.currentTick = 1;
     
-    // Reset player states
+    // Reset player states and draw new cards
     Object.keys(newG.players).forEach(playerID => {
         newG.players[playerID].committed = false;
         newG.players[playerID].ap = INITIAL_AP;
+        
+        // Draw 2 new cards
+        const draw = drawCards(newG.players[playerID].deck, 2);
+        newG.players[playerID].hand.push(...draw.drawn);
+        newG.players[playerID].deck = draw.remaining;
+        
+        console.log(`Player ${playerID} drew ${draw.drawn.length} cards`);
     });
 
     console.log('Final state:', newG);
@@ -888,4 +904,13 @@ export const MyGame = {
     
     return newG;
   },
+};
+
+// Add this helper function at the top of the file
+const checkGameOver = (G) => {
+    if (G.gameOver) {
+        console.log('Game is already over, move rejected');
+        return true;
+    }
+    return false;
 };
