@@ -1,6 +1,12 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 (async () => {
   try {
@@ -11,6 +17,14 @@ import { Server as SocketIO } from 'socket.io';
     const server = Server({
       games: [MyGame],
       origins: ['*'],
+    });
+
+    // Serve static files from the build directory
+    server.app.use(express.static('build'));
+
+    // Handle all routes by serving index.html
+    server.app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'build', 'index.html'));
     });
 
     const httpServer = createServer(server.app);
@@ -43,7 +57,7 @@ import { Server as SocketIO } from 'socket.io';
       });
     });
 
-    const PORT = process.env.PORT || 8080;  // Changed to 8080
+    const PORT = process.env.PORT || 8080;
     
     server.run({ 
       server: httpServer, 
