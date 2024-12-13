@@ -9,21 +9,21 @@ const GameClient = Client({
   board: Board,
   numPlayers: 2,
   multiplayer: SocketIO({ 
-    server: 'localhost:8001',
-    secure: false
+    server: 'again-production-04f0.up.railway.app',
+    secure: true
   }),
   debug: true,
 });
 
 const App = () => {
-  const [gameID] = React.useState('default');
+  const [matchID] = React.useState('match-1');
 
   return (
     <div className="App">
       <h1>Card Game</h1>
       <div className="players">
-        <GameClient playerID="0" gameID={gameID} />
-        <GameClient playerID="1" gameID={gameID} />
+        <GameClient playerID="0" matchID={matchID} />
+        <GameClient playerID="1" matchID={matchID} />
       </div>
     </div>
   );

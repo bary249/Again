@@ -43,21 +43,14 @@ import { Server as SocketIO } from 'socket.io';
       });
     });
 
-    // Add process error handlers
-    process.on('uncaughtException', (error) => {
-      console.error('Uncaught Exception:', error);
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    });
-
+    const PORT = process.env.PORT || 8080;  // Changed to 8080
+    
     server.run({ 
       server: httpServer, 
-      port: process.env.PORT || 8001  // Use environment port for Railway
+      port: PORT
     });
     
-    console.log(`Server running on port ${process.env.PORT || 8001}`);
+    console.log(`Server running on port ${PORT}`);
   } catch (error) {
     console.error('Server startup error:', error);
   }
