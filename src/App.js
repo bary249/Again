@@ -9,7 +9,7 @@ const GameClient = Client({
   board: Board,
   numPlayers: 2,
   multiplayer: SocketIO({ 
-    server: 'again-production-04f0.up.railway.app',
+    server: 'again-production-04f0.up.railway.app',  // Your Railway URL
     secure: true
   }),
   debug: true,
