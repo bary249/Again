@@ -543,6 +543,33 @@ const adminMoves = {
                     });
                 }
             }
+
+            // Check for cards in bases that need to return to equator
+            if (activeTier === P1_BASE || activeTier === P0_BASE) {
+                const baseOwner = activeTier === P1_BASE ? "1" : "0";
+                const attacker = baseOwner === "1" ? "0" : "1";
+                
+                // Only push back if base owner has cards and attacker doesn't
+                if (tier.cards[baseOwner].length > 0 && tier.cards[attacker].length === 0) {
+                    // Get surviving defender's cards
+                    const defendingCards = [...tier.cards[baseOwner]].map(card => ({...card}));
+                    
+                    // Move cards back to equator
+                    column.tiers[EQUATOR].cards[baseOwner] = defendingCards;
+                    
+                    // Clear the base
+                    tier.cards[baseOwner] = [];
+                    tier.cards[attacker] = [];
+                    
+                    // Reset active tier to equator
+                    column.activeTier = EQUATOR;
+                    
+                    // Log the successful defense
+                    newG.combatLog.push(
+                        `Column ${columnIndex + 1}: P${baseOwner} successfully defended their base - cards returning to Equator`
+                    );
+                }
+            }
         }
     });
 
