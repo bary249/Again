@@ -6,15 +6,15 @@ import { Server as SocketIO } from 'socket.io';
   const { MyGame } = await import('./Game/game.js');
   
   const server = Server({
-    games: [{ name: 'Again-game', game: MyGame }],
-    origins: ['http://localhost:3000'],
-    apiOrigins: ['http://localhost:3000']
+    games: [MyGame],
+    origins: ['*'],
   });
 
   const httpServer = createServer(server.app);
   const io = new SocketIO(httpServer, {
     cors: {
-      origin: ['http://localhost:3000'],
+      origin: '*',
+      methods: ['GET', 'POST'],
       credentials: true
     }
   });
@@ -22,4 +22,16 @@ import { Server as SocketIO } from 'socket.io';
   server.run({ server: httpServer, port: 8001 });
   
   console.log('Server running on port 8001');
+  
+  httpServer.on('error', (error) => {
+    console.error('Server error:', error);
+  });
+
+  io.on('connection', (socket) => {
+    console.log('Client connected:', socket.id);
+    
+    socket.on('disconnect', () => {
+      console.log('Client disconnected:', socket.id);
+    });
+  });
 })();
