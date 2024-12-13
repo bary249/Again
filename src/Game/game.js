@@ -5,8 +5,8 @@ import { INVALID_MOVE } from 'boardgame.io/core';
 
 // Constants
 export const EQUATOR = 0;    // Starting point (middle)
-export const P0_BASE = 1;    // One step towards P0's side
-export const P1_BASE = -1;   // One step towards P1's side
+export const P0_BASE = -1;   // One step towards P0's side
+export const P1_BASE = 1;    // One step towards P1's side
 export const COLUMNS = 3;
 export const TIERS = 3;      // Total number of tiers (equator + 2 bases)
 export const INITIAL_AP = 20;
@@ -123,6 +123,11 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
             logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}) (${card.damage} DMG, ${card.hp} HP) clashes with`);
             logMessage(`➤ P${targetPlayerID}'s ${target.name}(${target.initialPosition}) (${target.damage} DMG, ${target.hp} HP)`);
             
+            // Store original HP values
+            const cardOriginalHP = card.hp;
+            const targetOriginalHP = target.hp;
+            
+            // Apply damage simultaneously
             card.hp -= target.damage;
             target.hp -= card.damage;
             
@@ -130,6 +135,7 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
             logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}): ${card.hp} HP remaining`);
             logMessage(`➤ P${targetPlayerID}'s ${target.name}(${target.initialPosition}): ${target.hp} HP remaining`);
 
+            // Only remove cards if they were actually destroyed
             if (card.hp <= 0 && target.hp <= 0) {
                 tier.cards[playerID].shift();
                 targetCards.shift();
@@ -146,34 +152,56 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
             target.lastTickActed = currentTick;
         } else {
             // Normal combat
+            const originalHP = target.hp;
             target.hp -= card.damage;
             logMessage(`Tick ${currentTick}, Column ${columnIndex + 1}, ${getRegionName(activeTier, columnIndex)}:`);
             logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}) attacks P${targetPlayerID}'s ${target.name}(${target.initialPosition})`);
-            logMessage(`➤ Deals ${card.damage} damage (${target.hp + card.damage} HP ➜ ${target.hp} HP)`);
+            logMessage(`➤ Deals ${card.damage} damage (${originalHP} HP ➜ ${target.hp} HP)`);
 
             if (target.hp <= 0) {
                 targetCards.shift();
                 logMessage(`💥 P${targetPlayerID}'s ${target.name}(${target.initialPosition}) was destroyed!`);
             }
+            
+            card.lastTickActed = currentTick;
         }
-    } else if ((activeTier === P0_BASE || activeTier === P1_BASE) && 
-               currentTick % card.tick === 0 && 
-               card.ticksInBase > 0) {
-        // Unopposed card in base can attack crystal
-        const crystalID = activeTier === P0_BASE ? "0" : "1";
-        G.crystals[crystalID].hp -= card.damage;
-        G.crystals[crystalID].lastDamagedBy = playerID;
-        logMessage(`P${playerID}'s ${card.name} deals ${card.damage} damage to P${crystalID}'s crystal! (Crystal HP: ${G.crystals[crystalID].hp})`);
+    } else if ((activeTier === P0_BASE && playerID === "1") || 
+               (activeTier === P1_BASE && playerID === "0")) {
         
-        // Stop simulation if crystal is destroyed
-        if (G.crystals[crystalID].hp <= 0) {
-            G.isSimulating = false;
-            G.gameOver = true;
-            G.winner = playerID;
-            G.lastAction = `Game Over: Player ${playerID} wins by destroying Player ${crystalID}'s crystal!`;
+        if (targetCards.length === 0 && 
+            currentTick % card.tick === 0 && 
+            card.ticksInBase > 0) {
+            
+            const crystalID = activeTier === P0_BASE ? "0" : "1";
+            
+            console.log(`Crystal Attack:`, {
+                cardName: card.name,
+                damage: card.damage,
+                targetCrystal: crystalID,
+                crystalHPBefore: G.crystals[crystalID].hp,
+                currentTick,
+                cardTick: card.tick,
+                ticksInBase: card.ticksInBase
+            });
+            
+            G.crystals[crystalID].hp -= card.damage;
+            
+            console.log(`Crystal HP after attack: ${G.crystals[crystalID].hp}`);
+            
+            G.crystals[crystalID].lastDamagedBy = playerID;
+            G.combatLog.push(`P${playerID}'s ${card.name} deals ${card.damage} damage to P${crystalID}'s crystal! (Crystal HP: ${G.crystals[crystalID].hp})`);
+            
+            card.lastTickActed = currentTick;
+            
+            if (G.crystals[crystalID].hp <= 0) {
+                console.log(`Game Over: Crystal ${crystalID} destroyed by ${card.name}!`);
+                G.isSimulating = false;
+                G.gameOver = true;
+                G.winner = playerID;
+                G.lastAction = `Game Over: Player ${playerID} wins by destroying Player ${crystalID}'s crystal!`;
+            }
         }
     }
-
     // Increment ticksInBase if card is in a base
     if (activeTier === P0_BASE || activeTier === P1_BASE) {
         card.ticksInBase = (card.ticksInBase || 0) + 1;
@@ -434,71 +462,81 @@ const adminMoves = {
                     console.log('P0 controls Equator - pushing to P1 Base');
                     column.controllingPlayer = "0";
                     
-                    // Initialize the target tier if it doesn't exist
+                    // Initialize P1_BASE tier if needed
                     if (!column.tiers[P1_BASE]) {
-                        column.tiers[P1_BASE] = {
-                            cards: {
-                                "0": [],
-                                "1": []
-                            }
-                        };
+                        console.log(`Initializing P1 Base tier at index ${P1_BASE}`);
+                        column.tiers[P1_BASE] = { cards: { "0": [], "1": [] } };
                     }
                     
                     // Get surviving cards and log them
-                    const survivingCards = [...tier.cards["0"]];
+                    const survivingCards = [...tier.cards["0"]].map(card => {
+                        const newCard = {...card};
+                        const currentHP = card.hp;  // Get current HP
+                        newCard.hp = Math.floor(currentHP / 2);  // Halve from current HP
+                        console.log(`${card.name} HP halved from ${currentHP} to ${newCard.hp} during push`);
+                        return newCard;
+                    });
+                    console.log('Surviving cards before push:', survivingCards);
+                    
                     newG.combatLog.push(`Column ${columnIndex + 1}: P0 wins Equator - pushing to P1's Base with ${survivingCards.length} cards:`);
                     survivingCards.forEach(card => {
                         newG.combatLog.push(`➤ ${card.name} (${card.hp} HP remaining)`);
                     });
                     
-                    // Move cards to new tier
-                    column.tiers[P1_BASE].cards["0"] = survivingCards;
+                    // Move cards to P1_BASE (-1)
+                    column.tiers[P1_BASE].cards["0"] = [...survivingCards];
+                    console.log(`Cards after push to P1 Base (tier ${P1_BASE}):`, column.tiers[P1_BASE].cards["0"]);
+                    
+                    // Update active tier
                     column.activeTier = P1_BASE;
+                    console.log('New active tier:', column.activeTier);
                     
                     // Clear old tier
                     tier.cards["0"] = [];
                     tier.cards["1"] = [];
                     
-                    console.log('After push - new active tier:', column.activeTier);
-                    console.log('Surviving cards:', survivingCards);
-                    
                     survivingCards.forEach(card => {
-                        card.ticksInBase = 0;  // Reset when pushing to base
+                        card.ticksInBase = 0;
+                    });
+
+                    // Verify the move
+                    console.log('Column state after push:', {
+                        activeTier: column.activeTier,
+                        equatorCards: column.tiers[EQUATOR].cards,
+                        baseCards: column.tiers[P1_BASE].cards
                     });
                 } else if (player1Cards > 0 && player0Cards === 0) {
                     console.log('P1 controls Equator - pushing to P0 Base');
                     column.controllingPlayer = "1";
                     
-                    // Initialize the target tier if it doesn't exist
-                    if (!column.tiers[P0_BASE]) {
-                        column.tiers[P0_BASE] = {
-                            cards: {
-                                "0": [],
-                                "1": []
-                            }
-                        };
-                    }
-                    
                     // Get surviving cards and log them
-                    const survivingCards = [...tier.cards["1"]];
+                    const survivingCards = [...tier.cards["1"]].map(card => {
+                        const newCard = {...card};
+                        const currentHP = card.hp;  // Get current HP
+                        newCard.hp = Math.floor(currentHP / 2);  // Halve from current HP
+                        console.log(`${card.name} HP halved from ${currentHP} to ${newCard.hp} during push`);
+                        return newCard;
+                    });
                     newG.combatLog.push(`Column ${columnIndex + 1}: P1 wins Equator - pushing to P0's Base with ${survivingCards.length} cards:`);
                     survivingCards.forEach(card => {
                         newG.combatLog.push(`➤ ${card.name} (${card.hp} HP remaining)`);
                     });
                     
-                    // Move cards to new tier
-                    column.tiers[P0_BASE].cards["1"] = survivingCards;
+                    // Initialize P0_BASE tier if needed
+                    if (!column.tiers[P0_BASE]) {
+                        column.tiers[P0_BASE] = { cards: { "0": [], "1": [] } };
+                    }
+                    
+                    // Move cards to P0_BASE
+                    column.tiers[P0_BASE].cards["1"] = [...survivingCards];
                     column.activeTier = P0_BASE;
                     
                     // Clear old tier
                     tier.cards["0"] = [];
                     tier.cards["1"] = [];
                     
-                    console.log('After push - new active tier:', column.activeTier);
-                    console.log('Surviving cards:', survivingCards);
-                    
                     survivingCards.forEach(card => {
-                        card.ticksInBase = 0;  // Reset when pushing to base
+                        card.ticksInBase = 0;
                     });
                 }
             }
