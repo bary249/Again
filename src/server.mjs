@@ -1,6 +1,8 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import cors from 'cors';
+import express from 'express';
 
 (async () => {
   try {
@@ -8,50 +10,47 @@ import { Server as SocketIO } from 'socket.io';
     
     console.log('Starting server setup...');
     
+    const app = express();
+    
+    // Add CORS middleware
+    app.use(cors({
+      origin: [
+        'http://localhost:3000',
+        'https://lively-chaja-8eb605.netlify.app'
+      ],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      credentials: true
+    }));
+
     // Create boardgame.io server
     const server = Server({
       games: [MyGame],
-      origins: ['*'],
+      origins: [
+        'http://localhost:3000',
+        'https://lively-chaja-8eb605.netlify.app'
+      ],
     });
 
-    const httpServer = createServer(server.app);
+    // Mount the boardgame.io server
+    app.use(server.app);
+
+    const httpServer = createServer(app);
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: '*',
+        origin: [
+          'http://localhost:3000',
+          'https://lively-chaja-8eb605.netlify.app'
+        ],
         methods: ['GET', 'POST'],
         credentials: true
       }
     });
 
-    // Add error handlers
-    httpServer.on('error', (error) => {
-      console.error('HTTP Server error:', error);
-    });
-
-    io.on('error', (error) => {
-      console.error('Socket.IO error:', error);
-    });
-
-    io.on('connection', (socket) => {
-      console.log('Client connected:', socket.id);
-      
-      socket.on('error', (error) => {
-        console.error('Socket error:', error);
-      });
-      
-      socket.on('disconnect', (reason) => {
-        console.log('Client disconnected:', socket.id, 'Reason:', reason);
-      });
-    });
-
     const PORT = process.env.PORT || 8080;
     
-    server.run({
-      server: httpServer,
-      port: PORT
+    httpServer.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
     });
-    
-    console.log(`Server running on port ${PORT}`);
     
   } catch (error) {
     console.error('Server startup error:', error);
