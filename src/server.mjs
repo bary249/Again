@@ -14,27 +14,20 @@ const __dirname = path.dirname(__filename);
     
     console.log('Starting server setup...');
     
-    // Create Express app first
-    const app = express();
-    
-    // Serve static files
-    app.use(express.static('build'));
-
-    // Create boardgame.io server
     const server = Server({
       games: [MyGame],
       origins: ['*'],
     });
 
-    // Attach boardgame.io routes
-    app.use(server.router);
+    // Serve static files from the build directory
+    server.app.use(express.static('build'));
 
-    // Handle all other routes by serving index.html
-    app.get('*', (req, res) => {
+    // Handle all routes by serving index.html
+    server.app.get('*', (req, res) => {
       res.sendFile(path.join(__dirname, 'build', 'index.html'));
     });
 
-    const httpServer = createServer(app);
+    const httpServer = createServer(server.app);
     const io = new SocketIO(httpServer, {
       cors: {
         origin: '*',
