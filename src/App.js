@@ -27,11 +27,7 @@ const App = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Origin': window.location.origin,
         },
-        mode: 'cors',
-        credentials: 'include',
         body: JSON.stringify({
           numPlayers: 2
         }),
