@@ -117,14 +117,9 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
         const target = targetCards[0];
         
         if (currentTick % target.tick === 0 && target.lastTickActed !== currentTick) {
-            // Simultaneous combat
             logMessage(`Tick ${currentTick}, Column ${columnIndex + 1}, ${getRegionName(activeTier, columnIndex)}:`);
             logMessage(`➤ P${playerID}'s ${card.name}(${card.initialPosition}) (${card.damage} DMG, ${card.hp} HP) clashes with`);
             logMessage(`➤ P${targetPlayerID}'s ${target.name}(${target.initialPosition}) (${target.damage} DMG, ${target.hp} HP)`);
-            
-            // Store original HP values
-            const cardOriginalHP = card.hp;
-            const targetOriginalHP = target.hp;
             
             // Apply damage simultaneously
             card.hp -= target.damage;
