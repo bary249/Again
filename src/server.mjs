@@ -11,15 +11,24 @@ import { Server as SocketIO } from 'socket.io';
     // Create boardgame.io server
     const server = Server({
       games: [MyGame],
-      origins: ['*'],  // Allow all origins
+      origins: ['http://localhost:3000', 'https://lively-chaja-8eb605.netlify.app'],
+      callback: (app) => {
+        // Handle preflight requests
+        app.options('*', (req, res) => {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.status(200).end();
+        });
+      }
     });
 
     const httpServer = createServer(server.app);
     const io = new SocketIO(httpServer, {
       cors: {
         origin: '*',
-        methods: ['GET', 'POST'],
-        credentials: true
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false
       }
     });
 
