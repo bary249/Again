@@ -1,7 +1,6 @@
-// game.js
-import { generateDeck } from "./cards";
-import { Bot } from './bot';
-import { INVALID_MOVE } from 'boardgame.io/core';
+import { generateDeck } from "./cards.js";
+import { Bot } from './bot.js';
+import { INVALID_MOVE } from 'boardgame.io/dist/cjs/core.js';
 
 // Constants
 export const EQUATOR = 0;    // Starting point (middle)

@@ -1,15 +1,15 @@
 import React from 'react';
-import { Client } from 'boardgame.io/react';
-import { Local } from 'boardgame.io/multiplayer';
-import { MyGame } from './Game/game';
-import { Bot } from './Game/bot';
-import Board from './board';
+import { Client } from 'boardgame.io/dist/esm/react.js';
+import { SocketIO } from 'boardgame.io/dist/esm/multiplayer.js';
+import { MyGame } from './Game/game.js';
+import { Bot } from './Game/bot.js';
+import Board from './board.js';
 
 const GameClient = Client({
   game: MyGame,
   board: Board,
   numPlayers: 2,
-  multiplayer: Local(),
+  multiplayer: SocketIO({ server: 'localhost:8001' }),
   debug: true,
   ai: {
     enumerate: Bot.enumerate,
@@ -22,7 +22,10 @@ const App = () => {
   return (
     <div className="App">
       <h1>Card Game</h1>
-      <GameClient playerID="0" />
+      <div className="players">
+        <GameClient playerID="0" />
+        <GameClient playerID="1" />
+      </div>
     </div>
   );
 };
