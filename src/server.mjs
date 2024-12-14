@@ -29,26 +29,44 @@ import { MyGame } from './Game/game.js';
       res.status(200).end();
     });
 
-    // Add GET endpoint for game state
+    // Modify the GET endpoint for game state
     app.get('/games/:name/:id/state', (req, res) => {
       const { name, id } = req.params;
-      const state = gameStates.get(id);
+      console.log(`Fetching game state for game ${name}, id: ${id}`);
       
-      // Get the internal game state from boardgame.io
+      const state = gameStates.get(id);
       const internalState = server.getState(id);
       
-      if (state && internalState) {
-        res.json({
-          matchID: id,
-          state: {
-            ...state,
-            G: internalState.G,
-            ctx: internalState.ctx
-          }
+      console.log('Found state:', !!state);
+      console.log('Found internal state:', !!internalState);
+      
+      if (!state) {
+        console.log(`Game state not found for id: ${id}`);
+        return res.status(404).json({ 
+          error: 'Game not found',
+          details: 'No game state found for this ID'
         });
-      } else {
-        res.status(404).json({ error: 'Game not found' });
       }
+
+      if (!internalState) {
+        console.log(`Internal game state not found for id: ${id}`);
+        return res.status(404).json({ 
+          error: 'Game not found',
+          details: 'No internal game state found for this ID'
+        });
+      }
+
+      const fullState = {
+        matchID: id,
+        state: {
+          ...state,
+          G: internalState.G,
+          ctx: internalState.ctx
+        }
+      };
+
+      console.log('Returning full state:', fullState);
+      res.json(fullState);
     });
 
     // Add GET endpoint for list of games
