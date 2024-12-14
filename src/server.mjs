@@ -1,11 +1,10 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import { MyGame } from './Game/game.js';
 
 (async () => {
   try {
-    const { MyGame } = await import('./Game/game.js');
-    
     console.log('Starting server setup...');
     
     // Create boardgame.io server
@@ -20,6 +19,33 @@ import { Server as SocketIO } from 'socket.io';
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
           res.status(200).end();
         });
+
+        // Add GET endpoint for game state
+        app.get('/games/:name/:id/state', (req, res) => {
+          const { name, id } = req.params;
+          const state = gameStates.get(id);
+          
+          if (state) {
+            res.json({
+              matchID: id,
+              state: state
+            });
+          } else {
+            res.status(404).json({ error: 'Game not found' });
+          }
+        });
+
+        // Add GET endpoint for list of games
+        app.get('/games/list', (req, res) => {
+          const games = Array.from(gameStates.entries()).map(([id, state]) => ({
+            matchID: id,
+            state: state
+          }));
+          
+          res.json({
+            matches: games
+          });
+        });
       }
     });
 
@@ -32,18 +58,51 @@ import { Server as SocketIO } from 'socket.io';
       }
     });
 
-    // Add error handlers
-    httpServer.on('error', (error) => {
-      console.error('HTTP Server error:', error);
-    });
+    // Store active games and their states
+    const gameStates = new Map();
 
-    io.on('error', (error) => {
-      console.error('Socket.IO error:', error);
+    // Listen for game state changes from boardgame.io
+    server.app.post('/games/:name/:id/update', (req, res) => {
+      const { name, id } = req.params;
+      const state = req.body;
+      
+      // Store the updated state
+      gameStates.set(id, state);
+      
+      // Emit to all connected clients
+      io.emit('gameUpdate', {
+        matchID: id,
+        state: state
+      });
+      
+      res.status(200).end();
     });
 
     io.on('connection', (socket) => {
       console.log('Client connected:', socket.id);
       
+      // Send current game states to newly connected client
+      gameStates.forEach((state, matchID) => {
+        socket.emit('gameUpdate', {
+          matchID,
+          state
+        });
+      });
+
+      socket.on('joinGame', (matchID) => {
+        console.log(`Client ${socket.id} joining game ${matchID}`);
+        socket.join(matchID);
+        
+        // Send current state if available
+        const state = gameStates.get(matchID);
+        if (state) {
+          socket.emit('gameUpdate', {
+            matchID,
+            state
+          });
+        }
+      });
+
       socket.on('error', (error) => {
         console.error('Socket error:', error);
       });
