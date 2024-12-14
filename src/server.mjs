@@ -1,6 +1,7 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import express from 'express';
 import { MyGame } from './Game/game.js';
 
 (async () => {
@@ -10,94 +11,88 @@ import { MyGame } from './Game/game.js';
     // Store active games and their states
     const gameStates = new Map();
 
+    // Create Express app
+    const app = express();
+    app.use(express.json());
+
     // Create boardgame.io server
     const server = Server({
       games: [MyGame],
-      origins: ['http://localhost:3000', 'https://lively-chaja-8eb605.netlify.app'],
-      callback: (app) => {
-        // Handle preflight requests
-        app.options('*', (req, res) => {
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-          res.status(200).end();
-        });
+      origins: ['http://localhost:3000', 'https://lively-chaja-8eb605.netlify.app']
+    });
 
-        // Add GET endpoint for game state
-        app.get('/games/:name/:id/state', (req, res) => {
-          const { name, id } = req.params;
-          const state = gameStates.get(id);
-          
-          // Get the internal game state from boardgame.io
-          const internalState = server.getState(id);
-          
-          if (state && internalState) {
-            res.json({
-              matchID: id,
-              state: {
-                ...state,
-                G: internalState.G,
-                ctx: internalState.ctx
-              }
-            });
-          } else {
-            res.status(404).json({ error: 'Game not found' });
+    // Handle preflight requests
+    app.options('*', (req, res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.status(200).end();
+    });
+
+    // Add GET endpoint for game state
+    app.get('/games/:name/:id/state', (req, res) => {
+      const { name, id } = req.params;
+      const state = gameStates.get(id);
+      
+      // Get the internal game state from boardgame.io
+      const internalState = server.getState(id);
+      
+      if (state && internalState) {
+        res.json({
+          matchID: id,
+          state: {
+            ...state,
+            G: internalState.G,
+            ctx: internalState.ctx
           }
         });
-
-        // Add GET endpoint for list of games
-        app.get('/games/list', (req, res) => {
-          const games = Array.from(gameStates.entries()).map(([id, state]) => {
-            // Get the internal game state for each game
-            const internalState = server.getState(id);
-            return {
-              matchID: id,
-              state: {
-                ...state,
-                G: internalState?.G,
-                ctx: internalState?.ctx
-              }
-            };
-          });
-          
-          res.json({
-            matches: games
-          });
-        });
-
-        // Add POST endpoint for game creation
-        app.post('/games/:name/create', (req, res) => {
-          const { name } = req.params;
-          const matchID = `${Date.now()}`; // Generate a unique match ID
-          
-          // Create initial game state
-          const initialState = {
-            matchID,
-            players: {},
-            createdAt: new Date().toISOString()
-          };
-          
-          gameStates.set(matchID, initialState);
-          
-          res.status(200).json({
-            matchID,
-            initialState
-          });
-        });
+      } else {
+        res.status(404).json({ error: 'Game not found' });
       }
     });
 
-    const httpServer = createServer(server.app);
-    const io = new SocketIO(httpServer, {
-      cors: {
-        origin: '*',
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false
-      }
+    // Add GET endpoint for list of games
+    app.get('/games/list', (req, res) => {
+      const games = Array.from(gameStates.entries()).map(([id, state]) => {
+        // Get the internal game state for each game
+        const internalState = server.getState(id);
+        return {
+          matchID: id,
+          state: {
+            ...state,
+            G: internalState?.G,
+            ctx: internalState?.ctx
+          }
+        };
+      });
+      
+      res.json({
+        matches: games
+      });
     });
 
-    // Listen for game state changes from boardgame.io
-    server.app.post('/games/:name/:id/update', (req, res) => {
+    // Add POST endpoint for game creation
+    app.post('/games/:name/create', (req, res) => {
+      const { name } = req.params;
+      const matchID = `${Date.now()}`; // Generate a unique match ID
+      
+      // Create initial game state
+      const initialState = {
+        matchID,
+        players: {},
+        createdAt: new Date().toISOString()
+      };
+      
+      gameStates.set(matchID, initialState);
+      
+      res.status(200).json({
+        matchID,
+        initialState
+      });
+    });
+
+    // Listen for game state changes
+    app.post('/games/:name/:id/update', (req, res) => {
       const { name, id } = req.params;
       const state = req.body;
       
@@ -111,6 +106,18 @@ import { MyGame } from './Game/game.js';
       });
       
       res.status(200).end();
+    });
+
+    // Create HTTP server
+    const httpServer = createServer(app);
+    
+    // Create Socket.IO server
+    const io = new SocketIO(httpServer, {
+      cors: {
+        origin: '*',
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false
+      }
     });
 
     io.on('connection', (socket) => {
@@ -149,12 +156,14 @@ import { MyGame } from './Game/game.js';
 
     const PORT = process.env.PORT || 8080;
     
-    server.run({
-      server: httpServer,
-      port: PORT
+    // Start the server
+    server.run(PORT, () => {
+      console.log(`Boardgame.io server running on port ${PORT}`);
     });
-    
-    console.log(`Server running on port ${PORT}`);
+
+    httpServer.listen(PORT + 1, () => {
+      console.log(`Express server running on port ${PORT + 1}`);
+    });
     
   } catch (error) {
     console.error('Server startup error:', error);
