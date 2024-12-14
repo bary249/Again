@@ -15,13 +15,20 @@ console.error('[STARTUP] Server code starting...');
 
     // Create Express app
     const app = express();
-    app.use(express.json());
 
-    // Add a general request logger middleware before any routes:
+    // Put request logging FIRST, before any other middleware
     app.use((req, res, next) => {
-      console.error(`[REQUEST] ${req.method} ${req.path}`);
+      console.error('==================================');
+      console.error(`[REQUEST] Incoming ${req.method} ${req.path}`);
+      console.error('[REQUEST] Headers:', req.headers);
+      console.error('[REQUEST] Query:', req.query);
+      console.error('[REQUEST] Body:', req.body);
+      console.error('==================================');
       next();
     });
+
+    // THEN add json parsing
+    app.use(express.json());
 
     // Create boardgame.io server
     const server = Server({
@@ -69,15 +76,17 @@ console.error('[STARTUP] Server code starting...');
         });
       }
 
-      console.error('[DEBUG] Returning full state for id:', id);
-      res.json({
+      const fullState = {
         matchID: id,
         state: {
           ...state,
           G: internalState.G,
           ctx: internalState.ctx
         }
-      });
+      };
+
+      console.error('[DEBUG] Returning full state:', fullState);
+      res.json(fullState);
     });
 
     // Add GET endpoint for list of games
