@@ -7,6 +7,9 @@ import { MyGame } from './Game/game.js';
   try {
     console.log('Starting server setup...');
     
+    // Store active games and their states
+    const gameStates = new Map();
+
     // Create boardgame.io server
     const server = Server({
       games: [MyGame],
@@ -25,10 +28,17 @@ import { MyGame } from './Game/game.js';
           const { name, id } = req.params;
           const state = gameStates.get(id);
           
-          if (state) {
+          // Get the internal game state from boardgame.io
+          const internalState = server.getState(id);
+          
+          if (state && internalState) {
             res.json({
               matchID: id,
-              state: state
+              state: {
+                ...state,
+                G: internalState.G,
+                ctx: internalState.ctx
+              }
             });
           } else {
             res.status(404).json({ error: 'Game not found' });
@@ -37,13 +47,41 @@ import { MyGame } from './Game/game.js';
 
         // Add GET endpoint for list of games
         app.get('/games/list', (req, res) => {
-          const games = Array.from(gameStates.entries()).map(([id, state]) => ({
-            matchID: id,
-            state: state
-          }));
+          const games = Array.from(gameStates.entries()).map(([id, state]) => {
+            // Get the internal game state for each game
+            const internalState = server.getState(id);
+            return {
+              matchID: id,
+              state: {
+                ...state,
+                G: internalState?.G,
+                ctx: internalState?.ctx
+              }
+            };
+          });
           
           res.json({
             matches: games
+          });
+        });
+
+        // Add POST endpoint for game creation
+        app.post('/games/:name/create', (req, res) => {
+          const { name } = req.params;
+          const matchID = `${Date.now()}`; // Generate a unique match ID
+          
+          // Create initial game state
+          const initialState = {
+            matchID,
+            players: {},
+            createdAt: new Date().toISOString()
+          };
+          
+          gameStates.set(matchID, initialState);
+          
+          res.status(200).json({
+            matchID,
+            initialState
           });
         });
       }
@@ -57,9 +95,6 @@ import { MyGame } from './Game/game.js';
         credentials: false
       }
     });
-
-    // Store active games and their states
-    const gameStates = new Map();
 
     // Listen for game state changes from boardgame.io
     server.app.post('/games/:name/:id/update', (req, res) => {
