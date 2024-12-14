@@ -32,41 +32,44 @@ import { MyGame } from './Game/game.js';
     // Modify the GET endpoint for game state
     app.get('/games/:name/:id/state', (req, res) => {
       const { name, id } = req.params;
-      console.log(`Fetching game state for game ${name}, id: ${id}`);
+      console.error(`[DEBUG] Fetching game state for game ${name}, id: ${id}`);
       
       const state = gameStates.get(id);
       const internalState = server.getState(id);
       
-      console.log('Found state:', !!state);
-      console.log('Found internal state:', !!internalState);
+      console.error('[DEBUG] State check:', {
+        hasState: !!state,
+        hasInternalState: !!internalState,
+        gameStatesSize: gameStates.size,
+        availableIds: Array.from(gameStates.keys())
+      });
       
       if (!state) {
-        console.log(`Game state not found for id: ${id}`);
+        console.error(`[DEBUG] Game state not found for id: ${id}`);
         return res.status(404).json({ 
           error: 'Game not found',
-          details: 'No game state found for this ID'
+          details: 'No game state found for this ID',
+          availableIds: Array.from(gameStates.keys())
         });
       }
 
       if (!internalState) {
-        console.log(`Internal game state not found for id: ${id}`);
+        console.error(`[DEBUG] Internal game state not found for id: ${id}`);
         return res.status(404).json({ 
           error: 'Game not found',
           details: 'No internal game state found for this ID'
         });
       }
 
-      const fullState = {
+      console.error('[DEBUG] Returning full state for id:', id);
+      res.json({
         matchID: id,
         state: {
           ...state,
           G: internalState.G,
           ctx: internalState.ctx
         }
-      };
-
-      console.log('Returning full state:', fullState);
-      res.json(fullState);
+      });
     });
 
     // Add GET endpoint for list of games
