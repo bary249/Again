@@ -154,15 +154,15 @@ import { MyGame } from './Game/game.js';
       });
     });
 
-    const PORT = process.env.PORT || 8080;
+    const PORT = 8080;
     
     // Start the server
     server.run(PORT, () => {
       console.log(`Boardgame.io server running on port ${PORT}`);
     });
 
-    httpServer.listen(PORT + 1, () => {
-      console.log(`Express server running on port ${PORT + 1}`);
+    httpServer.listen(PORT, () => {
+      console.log(`Express server running on port ${PORT}`);
     });
     
   } catch (error) {
