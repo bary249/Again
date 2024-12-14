@@ -4,6 +4,8 @@ import { Server as SocketIO } from 'socket.io';
 import express from 'express';
 import { MyGame } from './Game/game.js';
 
+console.error('[STARTUP] Server code starting...');
+
 (async () => {
   try {
     console.log('Starting server setup...');
@@ -14,6 +16,12 @@ import { MyGame } from './Game/game.js';
     // Create Express app
     const app = express();
     app.use(express.json());
+
+    // Add a general request logger middleware before any routes:
+    app.use((req, res, next) => {
+      console.error(`[REQUEST] ${req.method} ${req.path}`);
+      next();
+    });
 
     // Create boardgame.io server
     const server = Server({
