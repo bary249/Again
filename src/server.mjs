@@ -46,7 +46,7 @@ const debugLog = (...args) => {
     });
 
     io.on('connection', (socket) => {
-      debugLog('🟢 Client connected:', socket.id);
+      console.log('[SOCKET] Connected:', socket.id);
       
       // Debug middleware for all events
       socket.use((packet, next) => {
@@ -69,44 +69,54 @@ const debugLog = (...args) => {
 
       // New handler for game state requests
       socket.on('requestGameState', async (data) => {
-        debugLog('🎲 Received requestGameState:', {
-          matchID: data.matchID,
-          socketId: socket.id
+        console.log('[SOCKET] Request State:', { 
+          socketId: socket.id, 
+          matchID: data.matchID 
         });
         
         try {
-          debugLog('📦 Fetching state for match:', data.matchID);
           const state = await server.db.fetch(`default:${data.matchID}`);
-          debugLog('📦 State found:', !!state);
+          console.log('[SOCKET] State found:', {
+            hasState: !!state,
+            matchID: data.matchID,
+            stateKeys: state ? Object.keys(state) : null
+          });
           
           if (state) {
-            debugLog('📤 Sending state to client:', socket.id);
+            // Log the actual state structure
+            console.log('[SOCKET] State structure:', {
+              hasG: !!state.G,
+              hasCtx: !!state.ctx,
+              GKeys: state.G ? Object.keys(state.G) : null,
+              ctxKeys: state.ctx ? Object.keys(state.ctx) : null
+            });
+
             socket.emit('gameStateUpdate', {
               G: state.G,
               ctx: state.ctx
             });
-            debugLog('✅ State sent');
+            console.log('[SOCKET] State sent to:', socket.id);
           } else {
-            debugLog('⚠️ No state found for match:', data.matchID);
+            console.log('[SOCKET] No state for match:', data.matchID);
           }
         } catch (error) {
-          debugLog('❌ Error:', error.message);
-          console.error(error);
+          console.log('[SOCKET] Error:', error.message);
+          console.log('[SOCKET] Error stack:', error.stack);
         }
       });
 
       // Handle joining a game room
       socket.on('joinGame', (matchID) => {
+        console.log('[SOCKET] Join Game:', { socketId: socket.id, matchID });
         socket.join(matchID);
-        console.log(`Client ${socket.id} joined game ${matchID}`);
       });
       
       socket.on('error', (error) => {
         debugLog('❌ Socket error:', error);
       });
       
-      socket.on('disconnect', (reason) => {
-        console.log('🔴 Client disconnected:', socket.id, 'Reason:', reason);
+      socket.on('disconnect', () => {
+        console.log('[SOCKET] Disconnected:', socket.id);
       });
     });
 
