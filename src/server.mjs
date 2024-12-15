@@ -2,6 +2,10 @@ import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 
+const debugLog = (...args) => {
+    console.log(new Date().toISOString(), ...args);
+};
+
 (async () => {
   try {
     const { MyGame } = await import('./Game/game.js');
@@ -42,15 +46,16 @@ import { Server as SocketIO } from 'socket.io';
     });
 
     io.on('connection', (socket) => {
-      console.log('🟢 Client connected:', socket.id);
+      debugLog('🟢 Client connected:', socket.id);
       
-      // Log all incoming events
-      socket.onAny((eventName, ...args) => {
-        console.log('📥 Incoming event:', {
-          event: eventName,
-          socketId: socket.id,
-          args: args
+      // Debug middleware for all events
+      socket.use((packet, next) => {
+        debugLog('📨 Packet received:', {
+          event: packet[0],
+          data: packet[1],
+          socketId: socket.id
         });
+        next();
       });
 
       // Listen for game state updates
@@ -64,29 +69,29 @@ import { Server as SocketIO } from 'socket.io';
 
       // New handler for game state requests
       socket.on('requestGameState', async (data) => {
-        console.log('🎲 Received requestGameState:', {
+        debugLog('🎲 Received requestGameState:', {
           matchID: data.matchID,
           socketId: socket.id
         });
         
         try {
-          console.log('📦 Fetching state for match:', data.matchID);
+          debugLog('📦 Fetching state for match:', data.matchID);
           const state = await server.db.fetch(`default:${data.matchID}`);
-          console.log('📦 Found state:', state ? 'yes' : 'no');
+          debugLog('📦 State found:', !!state);
           
           if (state) {
-            console.log('📤 Sending state to client:', socket.id);
+            debugLog('📤 Sending state to client:', socket.id);
             socket.emit('gameStateUpdate', {
               G: state.G,
               ctx: state.ctx
             });
-            console.log('✅ State sent successfully');
+            debugLog('✅ State sent');
           } else {
-            console.log('⚠️ No state found for match:', data.matchID);
+            debugLog('⚠️ No state found for match:', data.matchID);
           }
         } catch (error) {
-          console.error('❌ Error fetching state:', error);
-          console.error('Stack:', error.stack);
+          debugLog('❌ Error:', error.message);
+          console.error(error);
         }
       });
 
@@ -97,7 +102,7 @@ import { Server as SocketIO } from 'socket.io';
       });
       
       socket.on('error', (error) => {
-        console.error('Socket error:', error);
+        debugLog('❌ Socket error:', error);
       });
       
       socket.on('disconnect', (reason) => {
