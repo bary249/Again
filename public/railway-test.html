@@ -49,6 +49,11 @@
         });
 
         socket.on('gameUpdate', (update) => {
+            log('=== Game Update Received ===');
+    log('New Game State (G): ' + JSON.stringify(update.state.G, null, 2));
+    log('New Context (ctx): ' + JSON.stringify(update.state.ctx, null, 2));
+    log('Last Move: ' + JSON.stringify(update.state.lastMove, null, 2));
+    log('=========================');
             log('Game update: ' + JSON.stringify(update, null, 2));
         });
 

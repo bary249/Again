@@ -209,6 +209,68 @@ const ALLOWED_ORIGINS = [
         }
         activeConnections.delete(socket.id);
       });
+
+      socket.on('move', async (data) => {
+        try {
+          const { matchID, move, args, playerID } = data;
+          console.log(`[SOCKET] Move received for game ${matchID}:`, { move, args, playerID });
+          
+          const gameState = gameStates.get(matchID);
+          if (!gameState) {
+            throw new Error('Game state not found');
+          }
+
+          // Apply the move using your game's move functions
+          if (MyGame.moves && MyGame.moves[move]) {
+            // Create a mock ctx for the move
+            const ctx = {
+              ...gameState.ctx,
+              playerID: playerID,
+            };
+
+            // Apply the move
+            const newG = MyGame.moves[move]({ G: gameState.G, ctx }, ...args);
+
+            // Update the game state
+            gameState.G = newG;
+            gameState.ctx.turn += 1;
+            gameState.ctx.currentPlayer = gameState.ctx.playOrder[
+              gameState.ctx.turn % gameState.ctx.numPlayers
+            ];
+
+            // Record the move
+            gameState.lastMove = {
+              type: move,
+              args: args,
+              playerID: playerID,
+              timestamp: new Date()
+            };
+
+            // Broadcast the updated state to all players in the game
+            io.to(matchID).emit('gameUpdate', {
+              matchID,
+              state: {
+                G: gameState.G,
+                ctx: gameState.ctx,
+                lastMove: gameState.lastMove
+              },
+              metadata: {
+                move: gameState.lastMove,
+                currentPlayer: gameState.ctx.currentPlayer,
+                turn: gameState.ctx.turn
+              }
+            });
+          } else {
+            throw new Error(`Invalid move: ${move}`);
+          }
+        } catch (error) {
+          console.error('[SOCKET] Error processing move:', error);
+          socket.emit('error', {
+            message: 'Failed to process move',
+            details: error.message
+          });
+        }
+      });
     });
 
     // Get port from environment variable
