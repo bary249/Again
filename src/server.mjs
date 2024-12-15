@@ -220,49 +220,80 @@ const ALLOWED_ORIGINS = [
             throw new Error('Game state not found');
           }
 
-          // Apply the move using your game's move functions
-          if (MyGame.moves && MyGame.moves[move]) {
-            // Create a mock ctx for the move
-            const ctx = {
+          // Initialize G if it doesn't exist
+          if (!gameState.G) {
+            gameState.G = MyGame.setup();
+          }
+
+          // Initialize ctx if it doesn't exist
+          if (!gameState.ctx) {
+            gameState.ctx = {
+              numPlayers: 2,
+              turn: 0,
+              currentPlayer: '0',
+              playOrder: ['0', '1'],
+              playOrderPos: 0,
+              phase: 'play',
+              activePlayers: null
+            };
+          }
+
+          // Apply the move
+          try {
+            const moveFunction = MyGame.moves[move];
+            if (!moveFunction) {
+              throw new Error(`Move '${move}' not found`);
+            }
+
+            const moveCtx = {
               ...gameState.ctx,
-              playerID: playerID,
+              playerID,
+              random: {
+                Die: (spotValue) => Math.floor(Math.random() * spotValue) + 1,
+                Number: () => Math.random(),
+                Shuffle: (deck) => {
+                  let shuffled = [...deck];
+                  for (let i = shuffled.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                  }
+                  return shuffled;
+                }
+              }
             };
 
-            // Apply the move
-            const newG = MyGame.moves[move]({ G: gameState.G, ctx }, ...args);
-
-            // Update the game state
+            const newG = moveFunction({ G: gameState.G, ctx: moveCtx }, ...args);
+            
+            // Update game state
             gameState.G = newG;
             gameState.ctx.turn += 1;
             gameState.ctx.currentPlayer = gameState.ctx.playOrder[
               gameState.ctx.turn % gameState.ctx.numPlayers
             ];
-
-            // Record the move
             gameState.lastMove = {
               type: move,
-              args: args,
-              playerID: playerID,
+              args,
+              playerID,
               timestamp: new Date()
             };
 
-            // Broadcast the updated state to all players in the game
+            // Save updated state
+            gameStates.set(matchID, gameState);
+
+            // Broadcast update
             io.to(matchID).emit('gameUpdate', {
-              matchID,
               state: {
                 G: gameState.G,
                 ctx: gameState.ctx,
                 lastMove: gameState.lastMove
-              },
-              metadata: {
-                move: gameState.lastMove,
-                currentPlayer: gameState.ctx.currentPlayer,
-                turn: gameState.ctx.turn
               }
             });
-          } else {
-            throw new Error(`Invalid move: ${move}`);
+
+          } catch (moveError) {
+            console.error('[MOVE] Error applying move:', moveError);
+            throw new Error(`Failed to apply move: ${moveError.message}`);
           }
+
         } catch (error) {
           console.error('[SOCKET] Error processing move:', error);
           socket.emit('error', {

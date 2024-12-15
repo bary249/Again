@@ -9,6 +9,8 @@ const serverURL = hostname === 'localhost'
   ? 'http://localhost:8080'
   : 'https://again-production-04f0.up.railway.app';
 
+console.log('Connecting to server:', serverURL);
+
 const GameClient = Client({
   game: MyGame,
   board: Board,
@@ -24,9 +26,15 @@ const GameClient = Client({
       reconnectionDelayMax: 5000,
       timeout: 20000,
       withCredentials: false,
+      forceNew: true,
+      autoConnect: true,
     }
   }),
-  debug: true,
+  debug: {
+    collapseOnLoad: false,
+    hideToggleButton: false,
+    implementationBoard: true
+  },
 });
 
 const App = () => {
@@ -36,7 +44,8 @@ const App = () => {
 
   const createMatch = async () => {
     try {
-      const response = await fetch(`${serverURL}/games/default/create`, {
+      console.log('Creating match at:', `${serverURL}/games/MyGame/create`);
+      const response = await fetch(`${serverURL}/games/MyGame/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
