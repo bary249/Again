@@ -38,16 +38,20 @@ const debugLog = (...args) => {
       }
     });
 
-    // Add CORS middleware
-    server.app.use(cors({
-      origin: [
-        'http://localhost:3000',
-        'https://lively-chaja-8eb605.netlify.app'
-      ],
-      methods: ['GET', 'POST', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Accept'],
-      credentials: true
-    }));
+    // Add Koa middleware for CORS
+    server.app.use(async (ctx, next) => {
+      ctx.set('Access-Control-Allow-Origin', 'https://lively-chaja-8eb605.netlify.app');
+      ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      ctx.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
+      ctx.set('Access-Control-Allow-Credentials', 'true');
+
+      if (ctx.method === 'OPTIONS') {
+        ctx.status = 200;
+        return;
+      }
+      
+      await next();
+    });
 
     const httpServer = createServer(server.app);
     const io = new SocketIO(httpServer, {
