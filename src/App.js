@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Client } from 'boardgame.io/dist/esm/react.js';
 import { SocketIO } from 'boardgame.io/dist/esm/multiplayer.js';
 import { io } from 'socket.io-client';
@@ -24,33 +24,44 @@ const App = () => {
   const [joinMatchID, setJoinMatchID] = useState('');
   const socketRef = useRef(null);
 
-  const requestGameState = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.emit('requestGameState', { matchID });
-    }
-  }, [matchID]);
-
   useEffect(() => {
     if (matchID && showPlayer) {
-      socketRef.current = io(SERVER_URL);
-      window.socket = socketRef.current;
+      const socket = io(SERVER_URL, {
+        transports: ['websocket'],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        autoConnect: true,
+        withCredentials: true
+      });
 
-      socketRef.current.emit('joinGame', matchID);
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+      });
 
-      socketRef.current.on('gameStateUpdate', ({ G, ctx }) => {
+      socket.on('connect', () => {
+        console.log('Socket connected:', socket.id);
+      });
+
+      socketRef.current = socket;
+      window.socket = socket;
+
+      socket.emit('joinGame', matchID);
+
+      socket.on('gameStateUpdate', ({ G, ctx }) => {
         console.log('Received game state update:', { G, ctx });
       });
 
-      requestGameState();
+      // Store socket reference for cleanup
+      const currentSocket = socket;
 
       return () => {
-        if (socketRef.current) {
-          socketRef.current.disconnect();
+        if (currentSocket) {
+          currentSocket.disconnect();
           window.socket = null;
         }
       };
     }
-  }, [matchID, showPlayer, requestGameState]);
+  }, [matchID, showPlayer]);
 
   const createMatch = async () => {
     try {
@@ -58,15 +69,22 @@ const App = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         mode: 'cors',
         body: JSON.stringify({
           numPlayers: 2
         }),
       });
-      const { matchID } = await response.json();
-      setMatchID(matchID);
-      console.log('Created match:', matchID);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Created match:', data);
+      setMatchID(data.matchID);
+      setShowPlayer(0);
     } catch (error) {
       console.error('Error creating match:', error);
     }

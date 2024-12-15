@@ -213,6 +213,14 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 
 const playerMoves = {
   playCard: ({ G, ctx }, cardId, columnIndex) => {
+    console.log('🎯 PlayCard Start:', {
+        cardId,
+        columnIndex,
+        currentPlayer: ctx.currentPlayer
+    });
+    
+    logColumnState('⚡ Before Play:', G);
+    
     console.log('playCard');
     
     if (checkGameOver(G)) return G;
@@ -294,20 +302,17 @@ const playerMoves = {
     console.log('Final state:', newG);
     console.groupEnd();
 
-    const finalState = {
-        G: newG,
-        ctx: ctx
-    };
-    if (window.socket) {
-        console.log('🎲 Emitting game state update from player:', ctx.currentPlayer);
-        window.socket.emit('gameState', {
-            matchID: ctx.gameid,
-            G: finalState.G,
-            ctx: finalState.ctx,
-            sourcePlayer: ctx.currentPlayer,
-            sourceSocket: window.socket.id
+    if (typeof window !== 'undefined') {  // Only run on client
+        console.log('🃏 Cards after play:', {
+            columns: newG.columns,
+            currentPlayer: ctx.currentPlayer,
+            socketId: window.socket.id
         });
+        emitGameState(newG, ctx);
     }
+
+    logColumnState('✅ After Play:', newG);
+    logColumnState('🔚 End of Move:', newG);
 
     return newG;
   },
@@ -760,6 +765,65 @@ const adminMoves = {
   },
 };
 
+// Keep track of the last state to prevent duplicate updates
+let lastStateUpdate = null;
+
+// Debug function to log column state safely
+const logColumnState = (prefix, G) => {
+    if (!G || !G.columns) {
+        console.log(`${prefix} No columns available`);
+        return;
+    }
+
+    try {
+        console.log(`${prefix} Column State:`, {
+            time: new Date().toISOString(),
+            columns: G.columns.map(col => ({
+                cardCount: col?.cards?.length || 0,
+                cards: col?.cards || []
+            }))
+        });
+    } catch (error) {
+        console.error('Logging error:', error);
+        console.log('Raw G state:', G);
+    }
+};
+
+// Create a function to handle client-side state updates
+const emitGameState = (G, ctx) => {
+    if (typeof window !== 'undefined' && window.socket) {
+        logColumnState('📤 Before Emit:', G);
+        
+        try {
+            // Create a state snapshot
+            const stateSnapshot = {
+                columns: G.columns,
+                currentPlayer: ctx.currentPlayer,
+                timestamp: Date.now()
+            };
+
+            // Only emit if state has changed
+            if (JSON.stringify(stateSnapshot) !== lastStateUpdate) {
+                console.log('🎲 Emitting new state:', stateSnapshot);
+                
+                window.socket.emit('gameState', {
+                    matchID: ctx.gameid,
+                    G: G,
+                    ctx: ctx,
+                    sourcePlayer: ctx.currentPlayer,
+                    sourceSocket: window.socket.id,
+                    timestamp: Date.now()
+                });
+
+                lastStateUpdate = JSON.stringify(stateSnapshot);
+                logColumnState('📥 After Emit:', G);
+            }
+        } catch (error) {
+            console.error('Emit error:', error);
+        }
+    }
+};
+
 export const MyGame = {
   setup: createInitialState,
 
@@ -943,6 +1007,13 @@ export const MyGame = {
     
     return newG;
   },
+
+  // Add a state change subscriber
+  subscribe: (G, ctx) => {
+    if (typeof window !== 'undefined') {
+        logColumnState('🔄 State Changed:', G);
+    }
+  }
 };
 
 // Add this helper function at the top of the file

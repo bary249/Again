@@ -24,18 +24,32 @@ const debugLog = (...args) => {
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
           res.status(200).end();
         });
+        app.use((req, res, next) => {
+          res.header('Access-Control-Allow-Origin', '*');
+          res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+          
+          // Handle OPTIONS preflight requests
+          if (req.method === 'OPTIONS') {
+              return res.status(200).end();
+          }
+          
+          next();
+        });
       }
     });
 
     const httpServer = createServer(server.app);
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: '*',
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false
+        origin: "*",
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ["Content-Type"],
+        credentials: true
       }
     });
 
+    
     // Add error handlers
     httpServer.on('error', (error) => {
       console.error('HTTP Server error:', error);
