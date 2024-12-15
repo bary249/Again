@@ -47,8 +47,12 @@ const App = () => {
 
       socket.emit('joinGame', matchID);
 
-      socket.on('gameStateUpdate', ({ G, ctx }) => {
-        console.log('Received game state update:', { G, ctx });
+      socket.on('gameStateUpdate', (data) => {
+        console.log('📥 Received game state update:', {
+          time: new Date().toISOString(),
+          from: data.ctx.currentPlayer,
+          matchID: data.matchID
+        });
       });
 
       // Store socket reference for cleanup

@@ -212,7 +212,7 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 // In game.js, the complete playerMoves object:
 
 const playerMoves = {
-  playCard: ({ G, playerID }, cardId, columnIndex) => {
+  playCard: ({ G, ctx, playerID }, cardId, columnIndex) => {
     if (checkGameOver(G)) return G;
     
     console.group('playCard');
@@ -291,7 +291,7 @@ const playerMoves = {
     newG.lastAction = `Player ${playerID} played ${card.name}(${cardId}) in column ${columnIndex}`;
     console.log('Final state:', newG);
     console.groupEnd();
-    emitGameState(newG, G.ctx);
+    emitGameState(newG, ctx);
     return newG;
   },
 
@@ -941,16 +941,27 @@ const checkGameOver = (G) => {
 // In your emitGameState function
 function emitGameState(G, ctx) {
   if (typeof window !== 'undefined' && window.socket) {
-    console.log('🎮 Sending game state via socket:', {
-      time: new Date().toISOString(),
-      type: 'gameStateUpdate',
-      playerId: ctx.currentPlayer
-    });
-    
-    window.socket.emit('gameStateUpdate', {
+    const data = {
       G,
       ctx,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      matchID: ctx.matchID  // Make sure to include matchID
+    };
+
+    console.log('📤 Emitting game state:', {
+      time: new Date().toISOString(),
+      type: 'gameStateUpdate',
+      playerId: ctx.currentPlayer,
+      matchID: ctx.matchID
+    });
+    
+    // Add acknowledgment callback
+    window.socket.emit('gameStateUpdate', data, (error) => {
+      if (error) {
+        console.error('❌ Emit error:', error);
+      } else {
+        console.log('✅ Game state sent successfully');
+      }
     });
   }
 }
