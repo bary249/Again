@@ -44,12 +44,21 @@ import { Server as SocketIO } from 'socket.io';
     io.on('connection', (socket) => {
       console.log('🟢 Client connected:', socket.id);
       
+      // Log all incoming events
+      socket.onAny((eventName, ...args) => {
+        console.log('📥 Incoming event:', {
+          event: eventName,
+          socketId: socket.id,
+          args: args
+        });
+      });
+
       // Listen for game state updates
       socket.on('gameState', (data) => {
         console.log('🎲 Received gameState:', {
           matchID: data.matchID,
           socketId: socket.id,
-          data: data
+          data: JSON.stringify(data)
         });
       });
 
@@ -61,18 +70,23 @@ import { Server as SocketIO } from 'socket.io';
         });
         
         try {
+          console.log('📦 Fetching state for match:', data.matchID);
           const state = await server.db.fetch(`default:${data.matchID}`);
           console.log('📦 Found state:', state ? 'yes' : 'no');
           
           if (state) {
+            console.log('📤 Sending state to client:', socket.id);
             socket.emit('gameStateUpdate', {
               G: state.G,
               ctx: state.ctx
             });
-            console.log('✅ Sent state to client');
+            console.log('✅ State sent successfully');
+          } else {
+            console.log('⚠️ No state found for match:', data.matchID);
           }
         } catch (error) {
           console.error('❌ Error fetching state:', error);
+          console.error('Stack:', error.stack);
         }
       });
 
@@ -87,7 +101,7 @@ import { Server as SocketIO } from 'socket.io';
       });
       
       socket.on('disconnect', (reason) => {
-        console.log('Client disconnected:', socket.id, 'Reason:', reason);
+        console.log('🔴 Client disconnected:', socket.id, 'Reason:', reason);
       });
     });
 
