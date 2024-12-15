@@ -792,19 +792,29 @@ const emitGameState = (G, ctx) => {
         logColumnState('📤 Before Emit:', G);
         
         try {
+            // Get match ID from the page heading
+            const heading = document.querySelector('h1');
+            const matchID = heading ? heading.textContent.split('Match ')[1] : null;
+            
+            if (!matchID) {
+                console.error('❌ No match ID found for state update');
+                return;
+            }
+            
             // Create a complete state snapshot
             const stateSnapshot = {
                 G: G,
                 ctx: ctx,
-                matchID: ctx.gameid,
+                matchID: matchID,
                 sourcePlayer: ctx.currentPlayer,
                 sourceSocket: window.socket.id,
                 timestamp: Date.now()
             };
 
-            console.log('🎲 Emitting complete state (VERIFY DATA):', {
+            console.log('🎲 Emitting complete state:', {
                 hasG: !!stateSnapshot.G,
                 hasCtx: !!stateSnapshot.ctx,
+                matchID: stateSnapshot.matchID,
                 fullSnapshot: stateSnapshot
             });
             
@@ -813,6 +823,11 @@ const emitGameState = (G, ctx) => {
             logColumnState('📥 After Emit:', G);
         } catch (error) {
             console.error('Emit error:', error);
+            console.error('Error details:', {
+                hasWindow: typeof window !== 'undefined',
+                hasSocket: !!window.socket,
+                error: error.message
+            });
         }
     }
 };

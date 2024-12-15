@@ -59,8 +59,11 @@ const debugLog = (...args) => {
     });
 
     io.on('connection', (socket) => {
-      console.log('[SOCKET] Connected:', socket.id);
+      console.log('[SOCKET] New connection:', socket.id);
       
+      // Track rooms the socket is in
+      let currentRooms = new Set();
+
       // Debug middleware for all events
       socket.use((packet, next) => {
         debugLog('📨 Packet received:', {
@@ -73,35 +76,41 @@ const debugLog = (...args) => {
 
       // Listen for game state updates
       socket.on('gameState', (data) => {
-        console.log('[SOCKET] Game state update FULL DATA:', {
+        console.log('[SOCKET] Game state update received:', {
           matchID: data.matchID,
           sourcePlayer: data.sourcePlayer,
           sourceSocket: socket.id,
           hasG: !!data.G,
-          hasCtx: !!data.ctx,
-          G: data.G,  // Log the full G object
-          ctx: data.ctx  // Log the full ctx object
+          hasCtx: !!data.ctx
         });
         
-        // Broadcast to ALL clients in the room (including sender)
-        io.in(data.matchID).emit('gameStateUpdate', {
+        if (!data.matchID) {
+          console.error('[SOCKET] No matchID in game state update');
+          return;
+        }
+
+        // Broadcast to all clients in the room
+        const room = io.sockets.adapter.rooms.get(data.matchID);
+        console.log('[SOCKET] Broadcasting to room:', {
+          matchID: data.matchID,
+          clientCount: room ? room.size : 0,
+          clients: room ? Array.from(room) : []
+        });
+
+        socket.to(data.matchID).emit('gameStateUpdate', {
           G: data.G,
           ctx: data.ctx,
           matchID: data.matchID,
           sourcePlayer: data.sourcePlayer,
           timestamp: data.timestamp
         });
-
-        // Log what was emitted
-        console.log('[SOCKET] Emitted state update to room:', data.matchID);
       });
 
       // New handler for game state requests
       socket.on('requestGameState', async (data) => {
-        console.log('[SOCKET] Request State FULL DATA:', { 
-          socketId: socket.id, 
-          matchID: data.matchID,
-          data: data
+        console.log('[SOCKET] Game state requested:', {
+          socketId: socket.id,
+          matchID: data.matchID
         });
         
         try {
@@ -119,7 +128,7 @@ const debugLog = (...args) => {
               ctx: state.ctx,
               matchID: data.matchID
             });
-            console.log('[SOCKET] State sent to:', socket.id);
+            console.log('[SOCKET] State sent to requester:', socket.id);
           } else {
             console.log('[SOCKET] No state found for match:', data.matchID);
           }
@@ -130,8 +139,21 @@ const debugLog = (...args) => {
 
       // Handle joining a game room
       socket.on('joinGame', (matchID) => {
-        console.log('[SOCKET] Join Game:', { socketId: socket.id, matchID });
+        console.log('[SOCKET] Join Game Request:', { 
+          socketId: socket.id, 
+          matchID: matchID 
+        });
+        
         socket.join(matchID);
+        currentRooms.add(matchID);
+        
+        // Log all clients in this room
+        const room = io.sockets.adapter.rooms.get(matchID);
+        console.log('[SOCKET] Room status:', {
+          matchID: matchID,
+          clientCount: room ? room.size : 0,
+          clients: room ? Array.from(room) : []
+        });
       });
       
       socket.on('error', (error) => {
@@ -139,7 +161,10 @@ const debugLog = (...args) => {
       });
       
       socket.on('disconnect', () => {
-        console.log('[SOCKET] Disconnected:', socket.id);
+        console.log('[SOCKET] Client disconnected:', {
+          socketId: socket.id,
+          rooms: Array.from(currentRooms)
+        });
       });
     });
 
