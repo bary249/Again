@@ -22,7 +22,7 @@ server.app.use(async (ctx, next) => {
   if (ALLOWED_ORIGINS.includes(origin)) {
     ctx.set('Access-Control-Allow-Origin', origin);
     ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    ctx.set('Access-Control-Allow-Headers', 'Content-Type');
+    ctx.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
     ctx.set('Access-Control-Allow-Credentials', 'true');
   }
 
@@ -36,9 +36,9 @@ server.app.use(async (ctx, next) => {
 const httpServer = createServer(server.app.callback());
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: "https://admin.socket.io",
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ['Content-Type', 'Accept'],
+    allowedHeaders: ["Content-Type", "Accept"],
     credentials: true
   },
   transports: ['websocket', 'polling'],
