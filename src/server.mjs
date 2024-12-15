@@ -49,12 +49,37 @@ const io = new SocketIO(httpServer, {
   path: '/socket.io'
 });
 
-// Simplified admin UI setup
+// Add connection logging
+io.engine.on("connection_error", (err) => {
+  console.log("🔴 Connection Error:", {
+    type: err.code,
+    message: err.message,
+    context: err.context,
+    time: new Date().toISOString()
+  });
+});
+
+io.engine.on("headers", (headers, req) => {
+  console.log("🔄 Headers:", {
+    headers: headers,
+    url: req.url,
+    method: req.method,
+    time: new Date().toISOString()
+  });
+});
+
+// Simplified admin UI setup with debug
 instrument(io, {
   auth: false,
   mode: "development",
   serverId: "again-server",
-  namespaceName: "/admin"
+  namespaceName: "/admin",
+  readonly: false,
+  serverId: "again-server",
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2000,
+    skipMiddlewares: true,
+  }
 });
 
 // Keep all your existing socket.io code
