@@ -291,6 +291,7 @@ const playerMoves = {
     newG.lastAction = `Player ${playerID} played ${card.name}(${cardId}) in column ${columnIndex}`;
     console.log('Final state:', newG);
     console.groupEnd();
+    emitGameState(newG, G.ctx);
     return newG;
   },
 
@@ -937,7 +938,6 @@ const checkGameOver = (G) => {
     }
     return false;
 };
-
 // In your emitGameState function
 function emitGameState(G, ctx) {
   if (typeof window !== 'undefined' && window.socket) {
@@ -954,3 +954,4 @@ function emitGameState(G, ctx) {
     });
   }
 }
+

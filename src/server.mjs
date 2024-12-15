@@ -1,6 +1,8 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import { MyGame } from './Game/game.js';
+import cors from 'cors';
 
 const debugLog = (...args) => {
     console.log(new Date().toISOString(), ...args);
@@ -8,8 +10,6 @@ const debugLog = (...args) => {
 
 (async () => {
   try {
-    const { MyGame } = await import('./Game/game.js');
-    
     console.log('Starting server setup...');
     
     // Create boardgame.io server
@@ -39,10 +39,23 @@ const debugLog = (...args) => {
       }
     });
 
+    // Add CORS middleware
+    server.app.use(cors({
+      origin: [
+        'http://localhost:3000',
+        'https://lively-chaja-8eb605.netlify.app'
+      ],
+      methods: ['GET', 'POST'],
+      credentials: true
+    }));
+
     const httpServer = createServer(server.app);
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: "*",
+        origin: [
+          'http://localhost:3000',
+          'https://lively-chaja-8eb605.netlify.app'
+        ],
         methods: ["GET", "POST"],
         credentials: true
       }
