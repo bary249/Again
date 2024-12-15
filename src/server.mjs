@@ -6,7 +6,8 @@ import { instrument } from '@socket.io/admin-ui';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
-  'https://lively-chaja-8eb605.netlify.app'
+  'https://lively-chaja-8eb605.netlify.app',
+  'https://admin.socket.io'
 ];
 
 const server = Server({
@@ -35,7 +36,7 @@ server.app.use(async (ctx, next) => {
 const httpServer = createServer(server.app.callback());
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: [...ALLOWED_ORIGINS, "https://admin.socket.io"],
+    origin: ALLOWED_ORIGINS,
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ['Content-Type', 'Accept'],
     credentials: true
