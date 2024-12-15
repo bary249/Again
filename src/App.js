@@ -27,6 +27,8 @@ const GameClient = Client({
       timeout: 20000,
       withCredentials: false,
       forceNew: true,
+      autoConnect: true,
+      path: '/socket.io',
     }
   }),
   debug: {
@@ -47,6 +49,12 @@ if (typeof window !== 'undefined') {
   window.gameClient = GameClient;
   window.connectionStatus = connectionStatus;
 }
+
+console.log('Socket.IO client initialized with:', {
+  server: serverURL,
+  transport: 'websocket/polling',
+  debug: true
+});
 
 const App = () => {
   const [matchID, setMatchID] = useState(null);

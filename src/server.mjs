@@ -7,7 +7,7 @@ import { MyGame } from './Game/game.js';
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:8080',
-  'https://lively-chaja-8eb605.netlify.app',  // Your Netlify URL
+  'https://lively-chaja-8eb605.netlify.app',  // Your Netlify domain
   'https://again-production-04f0.up.railway.app',  // Your Railway URL
   'null'  // Add this for local file testing
 ];
@@ -26,16 +26,19 @@ const ALLOWED_ORIGINS = [
     // Add security headers and CORS with proper origin handling
     app.use((req, res, next) => {
       const origin = req.headers.origin;
+      console.log('[CORS] Request from origin:', origin);
       
-      // Allow null origin (for local file testing)
       if (origin === 'null' || ALLOWED_ORIGINS.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin || '*');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        
+        console.log('[CORS] Allowed origin:', origin);
+      } else {
+        console.log('[CORS] Blocked origin:', origin);
       }
       
-      // Handle preflight requests
       if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
@@ -102,22 +105,36 @@ const ALLOWED_ORIGINS = [
     // Create Socket.IO server with updated CORS
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: [...ALLOWED_ORIGINS, 'null'],
+        origin: ALLOWED_ORIGINS,
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: true,
         allowedHeaders: ['Content-Type']
       },
       transports: ['websocket', 'polling'],
       pingTimeout: 60000,
-      pingInterval: 25000
+      pingInterval: 25000,
+      connectTimeout: 30000,
+      allowEIO3: true,  // Allow Engine.IO version 3
+    });
+
+    // Add connection logging
+    io.engine.on('connection_error', (err) => {
+      console.log('[Socket.IO] Connection error:', err);
     });
 
     // Socket.IO connection handling with enhanced error handling
     io.on('connection', (socket) => {
+      console.log('[Socket.IO] New connection:', {
+        id: socket.id,
+        transport: socket.conn.transport.name,
+        headers: socket.handshake.headers
+      });
+
       console.log('[SOCKET] New client connected:', socket.id);
       console.log('[SOCKET] Client origin:', socket.handshake.headers.origin);
       
       socket.on('error', (error) => {
+        console.error('[Socket.IO] Socket error:', error);
         console.error('[SOCKET] Socket error:', error);
       });
       
