@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Client } from 'boardgame.io/dist/esm/react.js';
 import { SocketIO } from 'boardgame.io/dist/esm/multiplayer.js';
 import { io } from 'socket.io-client';
@@ -15,19 +15,7 @@ const GameClient = Client({
     server: SERVER_URL,
     secure: true
   }),
-  debug: true,
-  enhancer: (game) => ({
-    ...game,
-    onMove: (G, ctx) => {
-      if (window.socket) {
-        window.socket.emit('gameState', {
-          G,
-          ctx,
-          matchID: game.matchID
-        });
-      }
-    },
-  }),
+  debug: true
 });
 
 const App = () => {
@@ -35,6 +23,12 @@ const App = () => {
   const [showPlayer, setShowPlayer] = useState(null);
   const [joinMatchID, setJoinMatchID] = useState('');
   const socketRef = useRef(null);
+
+  const requestGameState = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.emit('requestGameState', { matchID });
+    }
+  }, [matchID]);
 
   useEffect(() => {
     if (matchID && showPlayer) {
@@ -47,6 +41,8 @@ const App = () => {
         console.log('Received game state update:', { G, ctx });
       });
 
+      requestGameState();
+
       return () => {
         if (socketRef.current) {
           socketRef.current.disconnect();
@@ -54,7 +50,7 @@ const App = () => {
         }
       };
     }
-  }, [matchID, showPlayer]);
+  }, [matchID, showPlayer, requestGameState]);
 
   const createMatch = async () => {
     try {

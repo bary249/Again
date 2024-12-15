@@ -51,6 +51,26 @@ import { Server as SocketIO } from 'socket.io';
         socket.broadcast.to(matchID).emit('gameStateUpdate', { G, ctx });
       });
 
+      // New handler for game state requests
+      socket.on('requestGameState', async ({ matchID }) => {
+        try {
+          // Get the game state from the boardgame.io store
+          const state = await server.db.fetch(`default:${matchID}`, { state: true });
+          if (state) {
+            // Send the game state back to the requesting client
+            socket.emit('gameStateUpdate', {
+              G: state.G,
+              ctx: state.ctx
+            });
+          } else {
+            console.log('No game state found for match:', matchID);
+          }
+        } catch (error) {
+          console.error('Error fetching game state:', error);
+          socket.emit('error', 'Failed to fetch game state');
+        }
+      });
+
       // Handle joining a game room
       socket.on('joinGame', (matchID) => {
         socket.join(matchID);
