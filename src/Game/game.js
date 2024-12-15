@@ -794,17 +794,20 @@ const emitGameState = (G, ctx) => {
         try {
             // Create a complete state snapshot
             const stateSnapshot = {
-                G: G,  // Send the full G object
-                ctx: ctx,  // Send the full ctx object
+                G: G,
+                ctx: ctx,
                 matchID: ctx.gameid,
                 sourcePlayer: ctx.currentPlayer,
                 sourceSocket: window.socket.id,
                 timestamp: Date.now()
             };
 
-            console.log('🎲 Emitting complete state:', stateSnapshot);
+            console.log('🎲 Emitting complete state (VERIFY DATA):', {
+                hasG: !!stateSnapshot.G,
+                hasCtx: !!stateSnapshot.ctx,
+                fullSnapshot: stateSnapshot
+            });
             
-            // Emit state update
             window.socket.emit('gameState', stateSnapshot);
             
             logColumnState('📥 After Emit:', G);

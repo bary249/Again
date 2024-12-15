@@ -73,10 +73,14 @@ const debugLog = (...args) => {
 
       // Listen for game state updates
       socket.on('gameState', (data) => {
-        console.log('[SOCKET] Game state update received:', {
+        console.log('[SOCKET] Game state update FULL DATA:', {
           matchID: data.matchID,
           sourcePlayer: data.sourcePlayer,
-          sourceSocket: socket.id
+          sourceSocket: socket.id,
+          hasG: !!data.G,
+          hasCtx: !!data.ctx,
+          G: data.G,  // Log the full G object
+          ctx: data.ctx  // Log the full ctx object
         });
         
         // Broadcast to ALL clients in the room (including sender)
@@ -87,43 +91,40 @@ const debugLog = (...args) => {
           sourcePlayer: data.sourcePlayer,
           timestamp: data.timestamp
         });
+
+        // Log what was emitted
+        console.log('[SOCKET] Emitted state update to room:', data.matchID);
       });
 
       // New handler for game state requests
       socket.on('requestGameState', async (data) => {
-        console.log('[SOCKET] Request State:', { 
+        console.log('[SOCKET] Request State FULL DATA:', { 
           socketId: socket.id, 
-          matchID: data.matchID 
+          matchID: data.matchID,
+          data: data
         });
         
         try {
+          // Fetch game state from boardgame.io server
           const state = await server.db.fetch(`default:${data.matchID}`);
           console.log('[SOCKET] State found:', {
             hasState: !!state,
             matchID: data.matchID,
-            stateKeys: state ? Object.keys(state) : null
+            fullState: state  // Log the full state
           });
           
           if (state) {
-            // Log the actual state structure
-            console.log('[SOCKET] State structure:', {
-              hasG: !!state.G,
-              hasCtx: !!state.ctx,
-              GKeys: state.G ? Object.keys(state.G) : null,
-              ctxKeys: state.ctx ? Object.keys(state.ctx) : null
-            });
-
             socket.emit('gameStateUpdate', {
               G: state.G,
-              ctx: state.ctx
+              ctx: state.ctx,
+              matchID: data.matchID
             });
             console.log('[SOCKET] State sent to:', socket.id);
           } else {
-            console.log('[SOCKET] No state for match:', data.matchID);
+            console.log('[SOCKET] No state found for match:', data.matchID);
           }
         } catch (error) {
-          console.log('[SOCKET] Error:', error.message);
-          console.log('[SOCKET] Error stack:', error.stack);
+          console.error('[SOCKET] Error fetching state:', error);
         }
       });
 
