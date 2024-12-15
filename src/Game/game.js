@@ -212,17 +212,7 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 // In game.js, the complete playerMoves object:
 
 const playerMoves = {
-  playCard: ({ G, ctx }, cardId, columnIndex) => {
-    console.log('🎯 PlayCard Start:', {
-        cardId,
-        columnIndex,
-        currentPlayer: ctx.currentPlayer
-    });
-    
-    logColumnState('⚡ Before Play:', G);
-    
-    console.log('playCard');
-    
+  playCard: ({ G, playerID }, cardId, columnIndex) => {
     if (checkGameOver(G)) return G;
     
     console.group('playCard');
@@ -233,9 +223,9 @@ const playerMoves = {
     // Get the active tier and cards before any changes
     const column = newG.columns[columnIndex];
     const activeTier = column?.activeTier;
-    const currentCards = column?.tiers[activeTier]?.cards[ctx.currentPlayer] || [];
+    const currentCards = column?.tiers[activeTier]?.cards[playerID] || [];
     
-    console.log(`Current cards in tier ${activeTier} for player ${ctx.currentPlayer}:`, currentCards);
+    console.log(`Current cards in tier ${activeTier} for player ${playerID}:`, currentCards);
     
     // Strict validation checks
     if (!column) {
@@ -244,7 +234,7 @@ const playerMoves = {
         return INVALID_MOVE;
     }
     
-    if (newG.players[ctx.currentPlayer].committed) {
+    if (newG.players[playerID].committed) {
         console.log('Player already committed');
         console.groupEnd();
         return INVALID_MOVE;
@@ -268,29 +258,29 @@ const playerMoves = {
     }
     
     // Find and validate card
-    const cardIndex = newG.players[ctx.currentPlayer].hand.findIndex(c => c.id === cardId);
+    const cardIndex = newG.players[playerID].hand.findIndex(c => c.id === cardId);
     if (cardIndex === -1) {
         console.error('Card not found in hand');
         console.groupEnd();
         return INVALID_MOVE;
     }
     
-    const card = newG.players[ctx.currentPlayer].hand[cardIndex];
+    const card = newG.players[playerID].hand[cardIndex];
     
     // Check AP
-    if (newG.players[ctx.currentPlayer].ap < card.cost) {
+    if (newG.players[playerID].ap < card.cost) {
         console.log('Not enough AP');
         console.groupEnd();
         return INVALID_MOVE;
     }
     
     // Process the move
-    newG.players[ctx.currentPlayer].hand.splice(cardIndex, 1);
-    newG.players[ctx.currentPlayer].ap -= card.cost;
-    column.tiers[activeTier].cards[ctx.currentPlayer].push(card);
+    newG.players[playerID].hand.splice(cardIndex, 1);
+    newG.players[playerID].ap -= card.cost;
+    column.tiers[activeTier].cards[playerID].push(card);
     
     // Final validation
-    const finalCards = column.tiers[activeTier].cards[ctx.currentPlayer];
+    const finalCards = column.tiers[activeTier].cards[playerID];
     console.log(`After play: ${finalCards.length} cards in tier`);
     if (finalCards.length > 2) {
         console.error('ERROR: Somehow exceeded card limit!');
@@ -298,71 +288,58 @@ const playerMoves = {
         return INVALID_MOVE;
     }
     
-    newG.lastAction = `Player ${ctx.currentPlayer} played ${card.name}(${cardId}) in column ${columnIndex}`;
+    newG.lastAction = `Player ${playerID} played ${card.name}(${cardId}) in column ${columnIndex}`;
     console.log('Final state:', newG);
     console.groupEnd();
-
-    if (typeof window !== 'undefined') {  // Only run on client
-        console.log('🃏 Cards after play:', {
-            columns: newG.columns,
-            currentPlayer: ctx.currentPlayer,
-            socketId: window.socket.id
-        });
-        emitGameState(newG, ctx);
-    }
-
-    logColumnState('✅ After Play:', newG);
-    logColumnState('🔚 End of Move:', newG);
-
     return newG;
   },
 
-  commitPlayer: ({ G, ctx }) => {
+  commitPlayer: ({ G, playerID }) => {
     const newG = JSON.parse(JSON.stringify(G));
-    newG.players[ctx.currentPlayer].committed = true;
-    newG.lastAction = `Player ${ctx.currentPlayer} committed their moves`;
+    newG.players[playerID].committed = true;
+    newG.lastAction = `Player ${playerID} committed their moves`;
     return newG;
   },
 
-  uncommitPlayer: ({ G, ctx }) => {
+  uncommitPlayer: ({ G, playerID }) => {
     if (G.roundPhase !== 'playing') return G;
     const newG = JSON.parse(JSON.stringify(G));
-    newG.players[ctx.currentPlayer].committed = false;
-    newG.lastAction = `Player ${ctx.currentPlayer} uncommitted their moves`;
+    newG.players[playerID].committed = false;
+    newG.lastAction = `Player ${playerID} uncommitted their moves`;
     return newG;
   },
 
-  removeCard: ({ G, ctx }, cardId) => {
+  removeCard: ({ G, playerID }, cardId) => {
     const newG = JSON.parse(JSON.stringify(G));
-    if (newG.players[ctx.currentPlayer].committed) return newG;
+    if (newG.players[playerID].committed) return newG;
     
-    const player = newG.players[ctx.currentPlayer];
+    const player = newG.players[playerID];
     const cardIndex = player.hand.findIndex(card => card.id === cardId);
     
     if (cardIndex === -1) return newG;
     player.hand.splice(cardIndex, 1);
-    newG.lastAction = `Player ${ctx.currentPlayer} removed a card`;
+    newG.lastAction = `Player ${playerID} removed a card`;
     return newG;
   },
 
-  removeCardFromBoard: ({ G, ctx }, columnIndex) => {
+  removeCardFromBoard: ({ G, playerID }, columnIndex) => {
     const newG = JSON.parse(JSON.stringify(G));
-    if (newG.players[ctx.currentPlayer].committed) return newG;
+    if (newG.players[playerID].committed) return newG;
     
     const column = newG.columns[columnIndex];
     const activeTier = column.activeTier;
     const tier = column.tiers[activeTier];
-    const playerCards = tier.cards[ctx.currentPlayer];
+    const playerCards = tier.cards[playerID];
     
     if (!playerCards || playerCards.length === 0) return newG;
     
     const card = playerCards[playerCards.length - 1];
     
     playerCards.pop();
-    newG.players[ctx.currentPlayer].hand.push(card);
-    newG.players[ctx.currentPlayer].ap += card.cost;
+    newG.players[playerID].hand.push(card);
+    newG.players[playerID].ap += card.cost;
     
-    newG.lastAction = `Player ${ctx.currentPlayer} took back ${card.name} from column ${columnIndex + 1}`;
+    newG.lastAction = `Player ${playerID} took back ${card.name} from column ${columnIndex + 1}`;
     return newG;
   }
 };
@@ -765,74 +742,9 @@ const adminMoves = {
   },
 };
 
-// Debug function to log column state safely
-const logColumnState = (prefix, G) => {
-    if (!G || !G.columns) {
-        console.log(`${prefix} No columns available`);
-        return;
-    }
-
-    try {
-        console.log(`${prefix} Column State:`, {
-            time: new Date().toISOString(),
-            columns: G.columns.map(col => ({
-                cardCount: col?.cards?.length || 0,
-                cards: col?.cards || []
-            }))
-        });
-    } catch (error) {
-        console.error('Logging error:', error);
-        console.log('Raw G state:', G);
-    }
-};
-
-// Create a function to handle client-side state updates
-const emitGameState = (G, ctx) => {
-    if (typeof window !== 'undefined' && window.socket) {
-        logColumnState('📤 Before Emit:', G);
-        
-        try {
-            // Get match ID from the page heading
-            const heading = document.querySelector('h1');
-            const matchID = heading ? heading.textContent.split('Match ')[1] : null;
-            
-            if (!matchID) {
-                console.error('❌ No match ID found for state update');
-                return;
-            }
-            
-            // Create a complete state snapshot
-            const stateSnapshot = {
-                G: G,
-                ctx: ctx,
-                matchID: matchID,
-                sourcePlayer: ctx.currentPlayer,
-                sourceSocket: window.socket.id,
-                timestamp: Date.now()
-            };
-
-            console.log('🎲 Emitting complete state:', {
-                hasG: !!stateSnapshot.G,
-                hasCtx: !!stateSnapshot.ctx,
-                matchID: stateSnapshot.matchID,
-                fullSnapshot: stateSnapshot
-            });
-            
-            window.socket.emit('gameState', stateSnapshot);
-            
-            logColumnState('📥 After Emit:', G);
-        } catch (error) {
-            console.error('Emit error:', error);
-            console.error('Error details:', {
-                hasWindow: typeof window !== 'undefined',
-                hasSocket: !!window.socket,
-                error: error.message
-            });
-        }
-    }
-};
-
 export const MyGame = {
+  name: 'my-game',
+
   setup: createInitialState,
 
   moves: {
@@ -1015,13 +927,6 @@ export const MyGame = {
     
     return newG;
   },
-
-  // Add a state change subscriber
-  subscribe: (G, ctx) => {
-    if (typeof window !== 'undefined') {
-        logColumnState('🔄 State Changed:', G);
-    }
-  }
 };
 
 // Add this helper function at the top of the file
@@ -1032,3 +937,20 @@ const checkGameOver = (G) => {
     }
     return false;
 };
+
+// In your emitGameState function
+function emitGameState(G, ctx) {
+  if (typeof window !== 'undefined' && window.socket) {
+    console.log('🎮 Sending game state via socket:', {
+      time: new Date().toISOString(),
+      type: 'gameStateUpdate',
+      playerId: ctx.currentPlayer
+    });
+    
+    window.socket.emit('gameStateUpdate', {
+      G,
+      ctx,
+      timestamp: Date.now()
+    });
+  }
+}

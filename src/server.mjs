@@ -59,7 +59,7 @@ const debugLog = (...args) => {
     });
 
     io.on('connection', (socket) => {
-      console.log('[SOCKET] New connection:', socket.id);
+      console.log('🔌 Socket Connected:', socket.id);
       
       // Track rooms the socket is in
       let currentRooms = new Set();
@@ -161,9 +161,23 @@ const debugLog = (...args) => {
       });
       
       socket.on('disconnect', () => {
-        console.log('[SOCKET] Client disconnected:', {
+        console.log('❌ Socket Disconnected:', socket.id);
+      });
+
+      socket.on('gameStateUpdate', (data) => {
+        console.log('📤 Emitting game state:', {
           socketId: socket.id,
-          rooms: Array.from(currentRooms)
+          matchID: data.matchID,
+          type: data.type,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log the number of clients in the room
+        const room = io.sockets.adapter.rooms.get(data.matchID);
+        console.log('📢 Broadcasting to room:', {
+          matchID: data.matchID,
+          clientCount: room ? room.size : 0,
+          clients: room ? Array.from(room) : []
         });
       });
     });
