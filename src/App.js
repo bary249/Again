@@ -9,7 +9,7 @@ const serverURL = hostname === 'localhost'
   ? 'http://localhost:8080'
   : 'https://again-production-04f0.up.railway.app';
 
-console.log('Connecting to server:', serverURL);
+console.log('Initializing game client with server URL:', serverURL);
 
 const GameClient = Client({
   game: MyGame,
@@ -18,8 +18,8 @@ const GameClient = Client({
   multiplayer: SocketIO({ 
     server: serverURL,
     socketOpts: {
-      transports: ['websocket'],
-      upgrade: false,
+      transports: ['websocket', 'polling'],
+      upgrade: true,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -27,15 +27,26 @@ const GameClient = Client({
       timeout: 20000,
       withCredentials: false,
       forceNew: true,
-      autoConnect: true,
     }
   }),
   debug: {
-    collapseOnLoad: false,
-    hideToggleButton: false,
-    implementationBoard: true
+    connection: true,
+    transport: true,
+    network: true
   },
 });
+
+const connectionStatus = {
+  onConnecting: () => console.log('Connecting to server...'),
+  onConnected: () => console.log('Connected to server!'),
+  onDisconnected: () => console.log('Disconnected from server'),
+  onError: (error) => console.error('Connection error:', error)
+};
+
+if (typeof window !== 'undefined') {
+  window.gameClient = GameClient;
+  window.connectionStatus = connectionStatus;
+}
 
 const App = () => {
   const [matchID, setMatchID] = useState(null);

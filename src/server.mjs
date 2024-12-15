@@ -135,53 +135,33 @@ const ALLOWED_ORIGINS = [
       // Enhanced join game handling with full state
       socket.on('joinGame', async ({ matchID, playerID }) => {
         try {
-          console.log(`[SOCKET] Client ${socket.id} joining game ${matchID} as player ${playerID}`);
+          console.log(`[SOCKET] Client ${socket.id} joining game ${matchID} as ${playerID}`);
           
-          // Update connection tracking
-          const connection = activeConnections.get(socket.id);
-          if (connection) {
-            if (connection.currentGame) {
-              socket.leave(connection.currentGame);
-            }
-            connection.currentGame = matchID;
-            connection.playerID = playerID;
-          }
-          
+          // Join the game room regardless of player type
           socket.join(matchID);
 
-          // Get game state from our storage
+          // Get game state
           const gameState = gameStates.get(matchID);
           
           if (gameState) {
-            // Update players in the game state
-            if (!gameState.players[playerID]) {
-              gameState.players[playerID] = {
-                id: playerID,
-                socketId: socket.id,
-                joinedAt: new Date()
-              };
+            // If it's an observer, don't add them to players list
+            if (playerID !== 'observer') {
+              if (!gameState.players[playerID]) {
+                gameState.players[playerID] = {
+                  id: playerID,
+                  socketId: socket.id,
+                  joinedAt: new Date()
+                };
+              }
             }
 
-            // Send complete state including metadata
+            // Send current state to the client
             socket.emit('gameState', {
               matchID,
               playerID,
-              state: gameState,
-              metadata: {
-                players: Object.keys(gameState.players),
-                currentPlayer: gameState.players[playerID],
-                phase: 'playing'
-              }
+              state: gameState
             });
 
-            // Notify other players
-            socket.to(matchID).emit('playerJoined', {
-              playerID,
-              timestamp: new Date().toISOString(),
-              metadata: {
-                totalPlayers: Object.keys(gameState.players).length
-              }
-            });
           } else {
             throw new Error('Game not found');
           }
@@ -220,78 +200,128 @@ const ALLOWED_ORIGINS = [
             throw new Error('Game state not found');
           }
 
-          // Initialize G if it doesn't exist
-          if (!gameState.G) {
-            gameState.G = MyGame.setup();
-          }
+          // Special handling for admin/test moves
+          if (playerID === 'admin') {
+            switch (move) {
+              case 'simulateCombat':
+                // Example combat simulation
+                gameState.G = {
+                  ...gameState.G,
+                  combatResult: {
+                    timestamp: new Date(),
+                    damage: Math.floor(Math.random() * 10),
+                    // Add more combat-related data
+                  }
+                };
+                break;
 
-          // Initialize ctx if it doesn't exist
-          if (!gameState.ctx) {
-            gameState.ctx = {
-              numPlayers: 2,
-              turn: 0,
-              currentPlayer: '0',
-              playOrder: ['0', '1'],
-              playOrderPos: 0,
-              phase: 'play',
-              activePlayers: null
-            };
-          }
+              case 'resetGame':
+                // Reset game to initial state
+                gameState.G = MyGame.setup();
+                gameState.ctx = {
+                  numPlayers: 2,
+                  turn: 0,
+                  currentPlayer: '0',
+                  playOrder: ['0', '1'],
+                  playOrderPos: 0,
+                  phase: 'play',
+                  activePlayers: null
+                };
+                break;
 
-          // Apply the move
-          try {
-            const moveFunction = MyGame.moves[move];
-            if (!moveFunction) {
-              throw new Error(`Move '${move}' not found`);
+              // Add more admin commands as needed
+              default:
+                throw new Error(`Unknown admin command: ${move}`);
             }
 
-            const moveCtx = {
-              ...gameState.ctx,
-              playerID,
-              random: {
-                Die: (spotValue) => Math.floor(Math.random() * spotValue) + 1,
-                Number: () => Math.random(),
-                Shuffle: (deck) => {
-                  let shuffled = [...deck];
-                  for (let i = shuffled.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-                  }
-                  return shuffled;
-                }
-              }
-            };
-
-            const newG = moveFunction({ G: gameState.G, ctx: moveCtx }, ...args);
-            
-            // Update game state
-            gameState.G = newG;
-            gameState.ctx.turn += 1;
-            gameState.ctx.currentPlayer = gameState.ctx.playOrder[
-              gameState.ctx.turn % gameState.ctx.numPlayers
-            ];
-            gameState.lastMove = {
-              type: move,
-              args,
-              playerID,
-              timestamp: new Date()
-            };
-
-            // Save updated state
+            // Save state and broadcast update
             gameStates.set(matchID, gameState);
-
-            // Broadcast update
             io.to(matchID).emit('gameUpdate', {
               state: {
                 G: gameState.G,
                 ctx: gameState.ctx,
-                lastMove: gameState.lastMove
+                lastMove: {
+                  type: move,
+                  args,
+                  playerID: 'admin',
+                  timestamp: new Date()
+                }
               }
             });
+          } else {
+            // Initialize G if it doesn't exist
+            if (!gameState.G) {
+              gameState.G = MyGame.setup();
+            }
 
-          } catch (moveError) {
-            console.error('[MOVE] Error applying move:', moveError);
-            throw new Error(`Failed to apply move: ${moveError.message}`);
+            // Initialize ctx if it doesn't exist
+            if (!gameState.ctx) {
+              gameState.ctx = {
+                numPlayers: 2,
+                turn: 0,
+                currentPlayer: '0',
+                playOrder: ['0', '1'],
+                playOrderPos: 0,
+                phase: 'play',
+                activePlayers: null
+              };
+            }
+
+            // Apply the move
+            try {
+              const moveFunction = MyGame.moves[move];
+              if (!moveFunction) {
+                throw new Error(`Move '${move}' not found`);
+              }
+
+              const moveCtx = {
+                ...gameState.ctx,
+                playerID,
+                random: {
+                  Die: (spotValue) => Math.floor(Math.random() * spotValue) + 1,
+                  Number: () => Math.random(),
+                  Shuffle: (deck) => {
+                    let shuffled = [...deck];
+                    for (let i = shuffled.length - 1; i > 0; i--) {
+                      const j = Math.floor(Math.random() * (i + 1));
+                      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+                    }
+                    return shuffled;
+                  }
+                }
+              };
+
+              const newG = moveFunction({ G: gameState.G, ctx: moveCtx }, ...args);
+              
+              // Update game state
+              gameState.G = newG;
+              gameState.ctx.turn += 1;
+              gameState.ctx.currentPlayer = gameState.ctx.playOrder[
+                gameState.ctx.turn % gameState.ctx.numPlayers
+              ];
+              gameState.lastMove = {
+                type: move,
+                args,
+                playerID,
+                timestamp: new Date()
+              };
+
+              // Save updated state
+              gameStates.set(matchID, gameState);
+
+              // Broadcast update
+              io.to(matchID).emit('gameUpdate', {
+                state: {
+                  G: gameState.G,
+                  ctx: gameState.ctx,
+                  lastMove: gameState.lastMove
+                }
+              });
+
+            } catch (moveError) {
+              console.error('[MOVE] Error applying move:', moveError);
+              throw new Error(`Failed to apply move: ${moveError.message}`);
+            }
           }
 
         } catch (error) {
