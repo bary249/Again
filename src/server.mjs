@@ -45,7 +45,8 @@ const debugLog = (...args) => {
         'http://localhost:3000',
         'https://lively-chaja-8eb605.netlify.app'
       ],
-      methods: ['GET', 'POST'],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Accept'],
       credentials: true
     }));
 
@@ -56,7 +57,8 @@ const debugLog = (...args) => {
           'http://localhost:3000',
           'https://lively-chaja-8eb605.netlify.app'
         ],
-        methods: ["GET", "POST"],
+        methods: ["GET", "POST", "OPTIONS"],
+        allowedHeaders: ['Content-Type', 'Accept'],
         credentials: true
       }
     });
