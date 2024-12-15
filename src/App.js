@@ -65,13 +65,11 @@ const App = () => {
 
   const createMatch = async () => {
     try {
-      const response = await fetch(`${SERVER_URL}/games/default/create`, {
+      const response = await fetch(`${SERVER_URL}/games/my-game/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
         },
-        mode: 'cors',
         body: JSON.stringify({
           numPlayers: 2
         }),
@@ -81,10 +79,9 @@ const App = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
-      console.log('Created match:', data);
-      setMatchID(data.matchID);
-      setShowPlayer(0);
+      const { matchID } = await response.json();
+      console.log('Created match:', { matchID });
+      setMatchID(matchID);
     } catch (error) {
       console.error('Error creating match:', error);
     }

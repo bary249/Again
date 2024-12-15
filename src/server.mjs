@@ -2,7 +2,6 @@ import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import { MyGame } from './Game/game.js';
-import cors from 'cors';
 
 const debugLog = (...args) => {
     console.log(new Date().toISOString(), ...args);
@@ -41,6 +40,7 @@ const debugLog = (...args) => {
     // Add Koa middleware for CORS
     server.app.use(async (ctx, next) => {
       ctx.set('Access-Control-Allow-Origin', 'https://lively-chaja-8eb605.netlify.app');
+      ctx.set('Access-Control-Allow-Origin', 'http://localhost:3000');
       ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       ctx.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
       ctx.set('Access-Control-Allow-Credentials', 'true');
