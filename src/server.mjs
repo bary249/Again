@@ -45,14 +45,16 @@ const io = new SocketIO(httpServer, {
   pingInterval: 25000,
   upgradeTimeout: 30000,
   allowUpgrades: true,
-  cookie: false
+  cookie: false,
+  path: '/socket.io'
 });
 
 // Simplified admin UI setup
 instrument(io, {
   auth: false,
   mode: "development",
-  serverId: "again-server"
+  serverId: "again-server",
+  namespaceName: "/admin"
 });
 
 // Keep all your existing socket.io code
