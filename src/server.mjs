@@ -2,6 +2,7 @@ import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import { MyGame } from './Game/game.js';
+import { instrument } from '@socket.io/admin-ui';
 
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
@@ -34,11 +35,21 @@ server.app.use(async (ctx, next) => {
 const httpServer = createServer(server.app.callback());
 const io = new SocketIO(httpServer, {
   cors: {
-    origin: ALLOWED_ORIGINS,
+    origin: [...ALLOWED_ORIGINS, "https://admin.socket.io"],
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ['Content-Type', 'Accept'],
     credentials: true
   }
+});
+
+// Add Socket.IO Admin UI
+instrument(io, {
+  auth: {
+    type: "basic",
+    username: "admin",
+    password: "$2b$10$heqvAkYMez.Va6Et2uXInOnkCT6/uQj1brkrbyG3LpopDklcq7ZOS"
+  },
+  mode: "development",
 });
 
 // Keep all your existing socket.io code
