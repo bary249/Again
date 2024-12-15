@@ -43,8 +43,7 @@ const debugLog = (...args) => {
     const io = new SocketIO(httpServer, {
       cors: {
         origin: "*",
-        methods: ["GET", "POST", "OPTIONS"],
-        allowedHeaders: ["Content-Type"],
+        methods: ["GET", "POST"],
         credentials: true
       }
     });
