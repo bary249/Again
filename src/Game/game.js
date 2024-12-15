@@ -765,9 +765,6 @@ const adminMoves = {
   },
 };
 
-// Keep track of the last state to prevent duplicate updates
-let lastStateUpdate = null;
-
 // Debug function to log column state safely
 const logColumnState = (prefix, G) => {
     if (!G || !G.columns) {
@@ -795,29 +792,22 @@ const emitGameState = (G, ctx) => {
         logColumnState('📤 Before Emit:', G);
         
         try {
-            // Create a state snapshot
+            // Create a complete state snapshot
             const stateSnapshot = {
-                columns: G.columns,
-                currentPlayer: ctx.currentPlayer,
+                G: G,  // Send the full G object
+                ctx: ctx,  // Send the full ctx object
+                matchID: ctx.gameid,
+                sourcePlayer: ctx.currentPlayer,
+                sourceSocket: window.socket.id,
                 timestamp: Date.now()
             };
 
-            // Only emit if state has changed
-            if (JSON.stringify(stateSnapshot) !== lastStateUpdate) {
-                console.log('🎲 Emitting new state:', stateSnapshot);
-                
-                window.socket.emit('gameState', {
-                    matchID: ctx.gameid,
-                    G: G,
-                    ctx: ctx,
-                    sourcePlayer: ctx.currentPlayer,
-                    sourceSocket: window.socket.id,
-                    timestamp: Date.now()
-                });
-
-                lastStateUpdate = JSON.stringify(stateSnapshot);
-                logColumnState('📥 After Emit:', G);
-            }
+            console.log('🎲 Emitting complete state:', stateSnapshot);
+            
+            // Emit state update
+            window.socket.emit('gameState', stateSnapshot);
+            
+            logColumnState('📥 After Emit:', G);
         } catch (error) {
             console.error('Emit error:', error);
         }

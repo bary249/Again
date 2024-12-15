@@ -76,17 +76,17 @@ const debugLog = (...args) => {
         console.log('[SOCKET] Game state update received:', {
           matchID: data.matchID,
           sourcePlayer: data.sourcePlayer,
-          sourceSocket: data.sourceSocket
+          sourceSocket: socket.id
         });
         
-        // Only broadcast to other clients in the same game
-        if (data.sourceSocket) {
-          socket.broadcast.to(data.matchID).emit('gameStateUpdate', {
-            G: data.G,
-            ctx: data.ctx,
-            sourcePlayer: data.sourcePlayer
-          });
-        }
+        // Broadcast to ALL clients in the room (including sender)
+        io.in(data.matchID).emit('gameStateUpdate', {
+          G: data.G,
+          ctx: data.ctx,
+          matchID: data.matchID,
+          sourcePlayer: data.sourcePlayer,
+          timestamp: data.timestamp
+        });
       });
 
       // New handler for game state requests
