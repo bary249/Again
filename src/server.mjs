@@ -4,17 +4,32 @@ import { Server as SocketIO } from 'socket.io';
 import express from 'express';
 import { MyGame } from './Game/game.js';
 
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://lively-chaja-8eb605.netlify.app',
+  'https://admin.socket.io'
+];
+
 console.error('[STARTUP] Server code starting...');
 
 (async () => {
   try {
     console.log('Starting server setup...');
     
-    // Store active games and their states
     const gameStates = new Map();
-
-    // Create Express app
     const app = express();
+    
+    // Create HTTP server explicitly
+    const httpServer = createServer(app);
+
+    // Create Socket.IO server with CORS configuration
+    const io = new SocketIO(httpServer, {
+      cors: {
+        origin: ALLOWED_ORIGINS,
+        methods: ["GET", "POST"],
+        credentials: true
+      }
+    });
 
     // Put request logging FIRST, before any other middleware
     app.use((req, res, next) => {
@@ -30,7 +45,7 @@ console.error('[STARTUP] Server code starting...');
     // THEN add json parsing
     app.use(express.json());
 
-    // Create boardgame.io server
+    // Create boardgame.io server with transport
     const server = Server({
       games: [MyGame],
       origins: ALLOWED_ORIGINS
@@ -151,15 +166,16 @@ console.error('[STARTUP] Server code starting...');
     // Get port from environment variable or fallback to 8080
     const PORT = process.env.PORT || 8080;
 
-    // Start the Express server first
-    await server.run({
-      port: PORT,
-      server: httpServer
+    // Mount the boardgame.io server to the HTTP server
+    server.attach(httpServer);
+
+    // Start the server
+    httpServer.listen(PORT, () => {
+      console.error(`[STARTUP] Server running on port ${PORT}`);
     });
-    console.error(`[STARTUP] Server running on port ${PORT}`);
     
   } catch (error) {
     console.error('[FATAL] Server startup error:', error);
-    process.exit(1);  // Exit on fatal errors
+    process.exit(1);
   }
 })();
