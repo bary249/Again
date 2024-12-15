@@ -42,32 +42,37 @@ import { Server as SocketIO } from 'socket.io';
     });
 
     io.on('connection', (socket) => {
-      console.log('Client connected:', socket.id);
+      console.log('🟢 Client connected:', socket.id);
       
       // Listen for game state updates
-      socket.on('gameState', ({ G, ctx, matchID }) => {
-        console.log('Received game state for match:', matchID);
-        // Broadcast to all clients in the same game/room except sender
-        socket.broadcast.to(matchID).emit('gameStateUpdate', { G, ctx });
+      socket.on('gameState', (data) => {
+        console.log('🎲 Received gameState:', {
+          matchID: data.matchID,
+          socketId: socket.id,
+          data: data
+        });
       });
 
       // New handler for game state requests
-      socket.on('requestGameState', async ({ matchID }) => {
+      socket.on('requestGameState', async (data) => {
+        console.log('🎲 Received requestGameState:', {
+          matchID: data.matchID,
+          socketId: socket.id
+        });
+        
         try {
-          // Get the game state from the boardgame.io store
-          const state = await server.db.fetch(`default:${matchID}`, { state: true });
+          const state = await server.db.fetch(`default:${data.matchID}`);
+          console.log('📦 Found state:', state ? 'yes' : 'no');
+          
           if (state) {
-            // Send the game state back to the requesting client
             socket.emit('gameStateUpdate', {
               G: state.G,
               ctx: state.ctx
             });
-          } else {
-            console.log('No game state found for match:', matchID);
+            console.log('✅ Sent state to client');
           }
         } catch (error) {
-          console.error('Error fetching game state:', error);
-          socket.emit('error', 'Failed to fetch game state');
+          console.error('❌ Error fetching state:', error);
         }
       });
 
