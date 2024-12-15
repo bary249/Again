@@ -9,7 +9,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:8080',
   'https://lively-chaja-8eb605.netlify.app',  // Your Netlify domain
   'https://again-production-04f0.up.railway.app',  // Your Railway URL
-  'null'  // Add this for local file testing
+  'null',
+  undefined  // Add this to handle undefined origin
 ];
 
 (async () => {
@@ -28,16 +29,13 @@ const ALLOWED_ORIGINS = [
       const origin = req.headers.origin;
       console.log('[CORS] Request from origin:', origin);
       
-      if (origin === 'null' || ALLOWED_ORIGINS.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        
-        console.log('[CORS] Allowed origin:', origin);
-      } else {
-        console.log('[CORS] Blocked origin:', origin);
-      }
+      // More permissive CORS handling
+      res.setHeader('Access-Control-Allow-Origin', origin || '*');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      
+      console.log('[CORS] Headers set for origin:', origin);
       
       if (req.method === 'OPTIONS') {
         res.status(200).end();
@@ -105,7 +103,7 @@ const ALLOWED_ORIGINS = [
     // Create Socket.IO server with updated CORS
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: ALLOWED_ORIGINS,
+        origin: '*',  // More permissive during development
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: true,
         allowedHeaders: ['Content-Type']
@@ -114,7 +112,8 @@ const ALLOWED_ORIGINS = [
       pingTimeout: 60000,
       pingInterval: 25000,
       connectTimeout: 30000,
-      allowEIO3: true,  // Allow Engine.IO version 3
+      allowEIO3: true,
+      path: '/socket.io'  // Explicitly set the path
     });
 
     // Add connection logging

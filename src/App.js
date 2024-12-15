@@ -18,17 +18,17 @@ const GameClient = Client({
   multiplayer: SocketIO({ 
     server: serverURL,
     socketOpts: {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],  // Try polling first
       upgrade: true,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
       withCredentials: false,
       forceNew: true,
       autoConnect: true,
-      path: '/socket.io',
+      path: '/socket.io'
     }
   }),
   debug: {
@@ -38,16 +38,24 @@ const GameClient = Client({
   },
 });
 
-const connectionStatus = {
-  onConnecting: () => console.log('Connecting to server...'),
-  onConnected: () => console.log('Connected to server!'),
-  onDisconnected: () => console.log('Disconnected from server'),
-  onError: (error) => console.error('Connection error:', error)
-};
-
+// Add connection event listeners
 if (typeof window !== 'undefined') {
   window.gameClient = GameClient;
-  window.connectionStatus = connectionStatus;
+  
+  // Access the underlying socket
+  const socket = GameClient.transport.socket;
+  
+  socket.on('connect', () => {
+    console.log('Socket connected!', socket.id);
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+  });
+  
+  socket.on('disconnect', (reason) => {
+    console.log('Socket disconnected:', reason);
+  });
 }
 
 console.log('Socket.IO client initialized with:', {
