@@ -1,125 +1,165 @@
 import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
+import express from 'express';
 import { MyGame } from './Game/game.js';
-import { instrument } from '@socket.io/admin-ui';
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'https://lively-chaja-8eb605.netlify.app',
-  'https://admin.socket.io'
-];
+console.error('[STARTUP] Server code starting...');
 
-const server = Server({
-  games: [MyGame],
-  origins: ALLOWED_ORIGINS,
-});
-
-// Add Koa middleware for CORS
-server.app.use(async (ctx, next) => {
-  const origin = ctx.get('Origin');
-  
-  if (ALLOWED_ORIGINS.includes(origin)) {
-    ctx.set('Access-Control-Allow-Origin', origin);
-    ctx.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    ctx.set('Access-Control-Allow-Headers', 'Content-Type, Accept');
-    ctx.set('Access-Control-Allow-Credentials', 'true');
-  }
-
-  if (ctx.method === 'OPTIONS') {
-    ctx.status = 200;
-  } else {
-    await next();
-  }
-});
-
-const httpServer = createServer(server.app.callback());
-const io = new SocketIO(httpServer, {
-  cors: {
-    origin: "https://admin.socket.io",
-    methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Accept"],
-    credentials: true
-  },
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 30000,
-  allowUpgrades: true,
-  cookie: false
-});
-
-// Add connection logging
-io.engine.on("connection_error", (err) => {
-  console.log("🔴 Connection Error:", {
-    type: err.code,
-    message: err.message,
-    context: err.context,
-    time: new Date().toISOString()
-  });
-});
-
-// Keep track of game rooms
-io.on('connection', (socket) => {
-  console.log('🔌 Socket Connected:', {
-    socketId: socket.id,
-    rooms: Array.from(socket.rooms),
-    time: new Date().toISOString()
-  });
-
-  socket.on('gameStateUpdate', (data) => {
-    console.log('📥 Received game state:', {
-      socketId: socket.id,
-      matchID: data.matchID,
-      playerID: data.ctx?.currentPlayer,
-      timestamp: new Date().toISOString(),
-      data: data  // Log the full data
-    });
+(async () => {
+  try {
+    console.log('Starting server setup...');
     
-    // Log before broadcasting
-    const room = io.sockets.adapter.rooms.get(data.matchID);
-    console.log('📢 Broadcasting to room:', {
-      matchID: data.matchID,
-      clientCount: room ? room.size : 0,
-      clients: room ? Array.from(room) : [],
-      time: new Date().toISOString()
+    // Store active games and their states
+    const gameStates = new Map();
+
+    // Create Express app
+    const app = express();
+
+    // Put request logging FIRST, before any other middleware
+    app.use((req, res, next) => {
+      console.error('==================================');
+      console.error(`[REQUEST] Incoming ${req.method} ${req.path}`);
+      console.error('[REQUEST] Headers:', req.headers);
+      console.error('[REQUEST] Query:', req.query);
+      console.error('[REQUEST] Body:', req.body);
+      console.error('==================================');
+      next();
     });
 
-    // Add acknowledgment callback
-    socket.broadcast.to(data.matchID).emit('gameStateUpdate', data, (error) => {
-      if (error) {
-        console.error('❌ Broadcast error:', error);
-      } else {
-        console.log('✅ Broadcast successful to room:', data.matchID);
+    // THEN add json parsing
+    app.use(express.json());
+
+    // Create boardgame.io server
+    const server = Server({
+      games: [MyGame],
+      origins: ALLOWED_ORIGINS
+    });
+
+    // Handle preflight requests
+    app.options('*', (req, res) => {
+      console.error('[CORS] Handling preflight request');
+      const origin = req.headers.origin;
+      
+      // Check if the origin is allowed
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      }
+      
+      res.status(200).end();
+    });
+
+    // Modify the GET endpoint for game state
+    app.get('/games/:name/:id/state', (req, res) => {
+      try {
+        const { name, id } = req.params;
+        console.error(`[STATE] Request for game ${name}, id: ${id}`);
+        
+        const state = gameStates.get(id);
+        const internalState = server.getState(id);
+        
+        console.error('[STATE] Debug:', {
+          hasState: !!state,
+          hasInternalState: !!internalState,
+          gameStatesSize: gameStates.size,
+          availableIds: Array.from(gameStates.keys())
+        });
+        
+        if (!state || !internalState) {
+          console.error(`[STATE] Not found - id: ${id}`);
+          return res.status(404).json({ 
+            error: 'Game not found',
+            details: !state ? 'No game state' : 'No internal state',
+            availableIds: Array.from(gameStates.keys())
+          });
+        }
+
+        console.error('[STATE] Sending response');
+        res.json({
+          matchID: id,
+          state: {
+            ...state,
+            G: internalState.G,
+            ctx: internalState.ctx
+          }
+        });
+      } catch (error) {
+        console.error('[ERROR] State endpoint:', error);
+        res.status(500).json({ error: String(error) });
       }
     });
-  });
 
-  socket.on('disconnect', () => {
-    console.log('❌ Socket Disconnected:', {
-      socketId: socket.id,
-      time: new Date().toISOString()
+    // Add GET endpoint for list of games
+    app.get('/games/list', (req, res) => {
+      console.error('[LIST] Getting game list');
+      try {
+        const games = Array.from(gameStates.entries()).map(([id, state]) => {
+          const internalState = server.getState(id);
+          return {
+            matchID: id,
+            state: {
+              ...state,
+              G: internalState?.G,
+              ctx: internalState?.ctx
+            }
+          };
+        });
+        
+        console.error('[LIST] Found games:', games.length);
+        res.json({ matches: games });
+      } catch (error) {
+        console.error('[ERROR] List endpoint:', error);
+        res.status(500).json({ error: String(error) });
+      }
     });
-  });
-});
 
-// Simplified admin UI setup with monitoring
-instrument(io, {
-  auth: false,
-  mode: "development",
-  serverId: "again-server",
-  readonly: false,
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2000,
-    skipMiddlewares: true,
+    // Add POST endpoint for game creation
+    app.post('/games/:name/create', (req, res) => {
+      console.error('[CREATE] Creating new game');
+      try {
+        const { name } = req.params;
+        const matchID = `${Date.now()}`; 
+        
+        const initialState = {
+          matchID,
+          players: {},
+          createdAt: new Date().toISOString()
+        };
+        
+        gameStates.set(matchID, initialState);
+        
+        console.error('[CREATE] Created game:', matchID);
+        res.status(200).json({
+          matchID,
+          initialState
+        });
+      } catch (error) {
+        console.error('[ERROR] Create endpoint:', error);
+        res.status(500).json({ error: String(error) });
+      }
+    });
+
+    // Add error handling middleware LAST
+    app.use((err, req, res, next) => {
+      console.error('[ERROR] Middleware caught:', err);
+      res.status(500).json({ error: String(err) });
+    });
+
+    // Get port from environment variable or fallback to 8080
+    const PORT = process.env.PORT || 8080;
+
+    // Start the Express server first
+    await server.run({
+      port: PORT,
+      server: httpServer
+    });
+    console.error(`[STARTUP] Server running on port ${PORT}`);
+    
+  } catch (error) {
+    console.error('[FATAL] Server startup error:', error);
+    process.exit(1);  // Exit on fatal errors
   }
-});
-
-const PORT = process.env.PORT || 8080;
-
-server.run({
-  server: httpServer,
-  port: PORT
-});
-
-console.log(`Server running on port ${PORT}`);
+})();
