@@ -15,9 +15,19 @@
     <pre id="log"></pre>
 
     <script>
+        // Get the server URL based on environment
+        const getServerUrl = () => {
+            if (window.location.hostname === 'localhost') {
+                return 'http://localhost:8000';
+            }
+            // Replace with your Railway URL
+            return 'again-production-04f0.up.railway.app';
+        };
+
         let currentMatchId = null;
-        const socket = io('http://localhost:8000', {
-            transports: ['websocket']
+        const socket = io(getServerUrl(), {
+            transports: ['websocket'],
+            withCredentials: true
         });
 
         function log(message) {
@@ -58,22 +68,23 @@
 
         // Test Functions
         async function createGame() {
-    try {
-        const response = await fetch('http://localhost:8000/games/MyGame/create', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
-        });
-        const data = await response.json();
-        currentMatchId = data.matchID;
-        document.getElementById('gameId').value = currentMatchId;
-        log('Game created: ' + JSON.stringify(data));
-    } catch (error) {
-        log('Error creating game: ' + error);
-    }
-}
+            try {
+                const response = await fetch(`${getServerUrl()}/games/MyGame/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({}),
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                currentMatchId = data.matchID;
+                document.getElementById('gameId').value = currentMatchId;
+                log('Game created: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Error creating game: ' + error);
+            }
+        }
 
         function joinGame() {
             const matchID = document.getElementById('gameId').value;

@@ -20,6 +20,14 @@ console.error('[DEBUG] socket-test.html path:', join(__dirname, '../public/socke
 const htmlPath = join(__dirname, '../public/socket-test.html');
 console.error('[DEBUG] Does socket-test.html exist?', existsSync(htmlPath));
 
+// Add allowed origins
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:8000',
+  'https://lively-chaja-8eb605.netlify.app',
+  // Add your Netlify domain here
+];
+
 (async () => {
   try {
     console.log('Starting server setup...');
