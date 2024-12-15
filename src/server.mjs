@@ -8,7 +8,8 @@ const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:8080',
   'https://lively-chaja-8eb605.netlify.app',  // Your Netlify URL
-  'https://again-production-04f0.up.railway.app'  // Your Railway URL
+  'https://again-production-04f0.up.railway.app',  // Your Railway URL
+  'null'  // Add this for local file testing
 ];
 
 (async () => {
@@ -25,12 +26,21 @@ const ALLOWED_ORIGINS = [
     // Add security headers and CORS with proper origin handling
     app.use((req, res, next) => {
       const origin = req.headers.origin;
-      if (ALLOWED_ORIGINS.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
+      
+      // Allow null origin (for local file testing)
+      if (origin === 'null' || ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin || '*');
         res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       }
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      
+      // Handle preflight requests
+      if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+      }
+      
       next();
     });
 
@@ -92,7 +102,7 @@ const ALLOWED_ORIGINS = [
     // Create Socket.IO server with updated CORS
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: ALLOWED_ORIGINS,
+        origin: [...ALLOWED_ORIGINS, 'null'],
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: true,
         allowedHeaders: ['Content-Type']

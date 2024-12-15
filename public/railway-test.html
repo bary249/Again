@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Game Test</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="status">Disconnected</div>
+    <div id="controls">
+        <button onclick="createGame()">Create Game</button>
+        <input type="text" id="gameId" placeholder="Game ID">
+        <button onclick="joinGame()">Join Game</button>
+        <button onclick="makeMove()">Make Test Move</button>
+    </div>
+    <pre id="log"></pre>
+
+    <script>
+        // Always use the Railway URL for testing
+        const SERVER_URL = 'https://again-production-04f0.up.railway.app';
+        
+        let currentMatchId = null;
+        const socket = io(SERVER_URL, {
+    transports: ['websocket'],
+    withCredentials: false  // Change this to false
+});
+
+        function log(message) {
+            const logElement = document.getElementById('log');
+            logElement.innerHTML = `${new Date().toISOString()}: ${message}\n` + logElement.innerHTML;
+        }
+
+        // Connection events
+        socket.on('connect', () => {
+            document.getElementById('status').textContent = `Connected (${socket.id})`;
+            log('Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('status').textContent = 'Disconnected';
+            log('Disconnected from server');
+        });
+
+        socket.on('error', (error) => {
+            log('Error: ' + JSON.stringify(error));
+        });
+
+        socket.on('gameState', (state) => {
+            log('Received game state: ' + JSON.stringify(state, null, 2));
+        });
+
+        socket.on('gameUpdate', (update) => {
+            log('Game update: ' + JSON.stringify(update, null, 2));
+        });
+
+        socket.on('playerJoined', (data) => {
+            log('Player joined: ' + JSON.stringify(data));
+        });
+
+        socket.on('playerLeft', (data) => {
+            log('Player left: ' + JSON.stringify(data));
+        });
+
+        async function createGame() {
+    try {
+        const response = await fetch(`${SERVER_URL}/games/MyGame/create`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({}),
+            // Remove credentials: 'include'
+        });
+        const data = await response.json();
+        currentMatchId = data.matchID;
+        document.getElementById('gameId').value = currentMatchId;
+        log('Game created: ' + JSON.stringify(data));
+    } catch (error) {
+        log('Error creating game: ' + error);
+    }
+}
+
+        function joinGame() {
+            const matchID = document.getElementById('gameId').value;
+            currentMatchId = matchID;
+            socket.emit('joinGame', {
+                matchID: matchID,
+                playerID: '0'  // You can alternate between '0' and '1' for testing
+            });
+            log('Joining game: ' + matchID);
+        }
+
+        function makeMove() {
+            if (!currentMatchId) {
+                log('No active game! Create or join a game first.');
+                return;
+            }
+
+            socket.emit('move', {
+                matchID: currentMatchId,
+                move: 'playCard',
+                args: [0, 0],
+                playerID: '0'
+            });
+            log('Move sent');
+        }
+    </script>
+</body>
+</html>
