@@ -25,15 +25,14 @@ const debugLog = (...args) => {
           res.status(200).end();
         });
         app.use((req, res, next) => {
-          res.header('Access-Control-Allow-Origin', '*');
+          res.header('Access-Control-Allow-Origin', 'https://lively-chaja-8eb605.netlify.app');
           res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-          res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+          res.header('Access-Control-Allow-Headers', 'Content-Type, Accept');
+          res.header('Access-Control-Allow-Credentials', 'true');
           
-          // Handle OPTIONS preflight requests
           if (req.method === 'OPTIONS') {
-              return res.status(200).end();
+            return res.sendStatus(200);
           }
-          
           next();
         });
       }
