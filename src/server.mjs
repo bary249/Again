@@ -44,6 +44,19 @@ import { Server as SocketIO } from 'socket.io';
     io.on('connection', (socket) => {
       console.log('Client connected:', socket.id);
       
+      // Listen for game state updates
+      socket.on('gameState', ({ G, ctx, matchID }) => {
+        console.log('Received game state for match:', matchID);
+        // Broadcast to all clients in the same game/room except sender
+        socket.broadcast.to(matchID).emit('gameStateUpdate', { G, ctx });
+      });
+
+      // Handle joining a game room
+      socket.on('joinGame', (matchID) => {
+        socket.join(matchID);
+        console.log(`Client ${socket.id} joined game ${matchID}`);
+      });
+      
       socket.on('error', (error) => {
         console.error('Socket error:', error);
       });

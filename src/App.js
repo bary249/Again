@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Client } from 'boardgame.io/dist/esm/react.js';
 import { SocketIO } from 'boardgame.io/dist/esm/multiplayer.js';
+import { io } from 'socket.io-client';
 import { MyGame } from './Game/game.js';
 import Board from './board.js';
 
@@ -15,12 +16,45 @@ const GameClient = Client({
     secure: true
   }),
   debug: true,
+  enhancer: (game) => ({
+    ...game,
+    onMove: (G, ctx) => {
+      if (window.socket) {
+        window.socket.emit('gameState', {
+          G,
+          ctx,
+          matchID: game.matchID
+        });
+      }
+    },
+  }),
 });
 
 const App = () => {
   const [matchID, setMatchID] = useState(null);
   const [showPlayer, setShowPlayer] = useState(null);
   const [joinMatchID, setJoinMatchID] = useState('');
+  const socketRef = useRef(null);
+
+  useEffect(() => {
+    if (matchID && showPlayer) {
+      socketRef.current = io(SERVER_URL);
+      window.socket = socketRef.current;
+
+      socketRef.current.emit('joinGame', matchID);
+
+      socketRef.current.on('gameStateUpdate', ({ G, ctx }) => {
+        console.log('Received game state update:', { G, ctx });
+      });
+
+      return () => {
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          window.socket = null;
+        }
+      };
+    }
+  }, [matchID, showPlayer]);
 
   const createMatch = async () => {
     try {
@@ -73,6 +107,16 @@ const App = () => {
   }
 
   // Game screen
+  const handleLeaveGame = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      window.socket = null;
+    }
+    setShowPlayer(null);
+    setMatchID(null);
+    setJoinMatchID('');
+  };
+
   return (
     <div className="App">
       <div style={{ 
@@ -80,11 +124,7 @@ const App = () => {
         top: '10px', 
         right: '10px' 
       }}>
-        <button onClick={() => {
-          setShowPlayer(null);
-          setMatchID(null);
-          setJoinMatchID('');
-        }}>Leave Game</button>
+        <button onClick={handleLeaveGame}>Leave Game</button>
       </div>
       <h1>Card Game - Match {matchID}</h1>
       <p>You are Player {showPlayer}</p>
