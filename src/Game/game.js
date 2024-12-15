@@ -299,11 +299,13 @@ const playerMoves = {
         ctx: ctx
     };
     if (window.socket) {
-        console.log('🎲 Emitting game state update:', finalState);
+        console.log('🎲 Emitting game state update from player:', ctx.currentPlayer);
         window.socket.emit('gameState', {
             matchID: ctx.gameid,
             G: finalState.G,
-            ctx: finalState.ctx
+            ctx: finalState.ctx,
+            sourcePlayer: ctx.currentPlayer,
+            sourceSocket: window.socket.id
         });
     }
 

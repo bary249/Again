@@ -60,11 +60,20 @@ const debugLog = (...args) => {
 
       // Listen for game state updates
       socket.on('gameState', (data) => {
-        console.log('🎲 Received gameState:', {
+        console.log('[SOCKET] Game state update received:', {
           matchID: data.matchID,
-          socketId: socket.id,
-          data: JSON.stringify(data)
+          sourcePlayer: data.sourcePlayer,
+          sourceSocket: data.sourceSocket
         });
+        
+        // Only broadcast to other clients in the same game
+        if (data.sourceSocket) {
+          socket.broadcast.to(data.matchID).emit('gameStateUpdate', {
+            G: data.G,
+            ctx: data.ctx,
+            sourcePlayer: data.sourcePlayer
+          });
+        }
       });
 
       // New handler for game state requests
