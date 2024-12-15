@@ -45,8 +45,7 @@ const io = new SocketIO(httpServer, {
   pingInterval: 25000,
   upgradeTimeout: 30000,
   allowUpgrades: true,
-  cookie: false,
-  path: '/socket.io'
+  cookie: false
 });
 
 // Add connection logging
@@ -59,30 +58,7 @@ io.engine.on("connection_error", (err) => {
   });
 });
 
-io.engine.on("headers", (headers, req) => {
-  console.log("🔄 Headers:", {
-    headers: headers,
-    url: req.url,
-    method: req.method,
-    time: new Date().toISOString()
-  });
-});
-
-// Simplified admin UI setup with debug
-instrument(io, {
-  auth: false,
-  mode: "development",
-  serverId: "again-server",
-  namespaceName: "/admin",
-  readonly: false,
-  serverId: "again-server",
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2000,
-    skipMiddlewares: true,
-  }
-});
-
-// Keep all your existing socket.io code
+// Keep track of game rooms
 io.on('connection', (socket) => {
   console.log('🔌 Socket Connected:', {
     socketId: socket.id,
@@ -124,6 +100,18 @@ io.on('connection', (socket) => {
       time: new Date().toISOString()
     });
   });
+});
+
+// Simplified admin UI setup with monitoring
+instrument(io, {
+  auth: false,
+  mode: "development",
+  serverId: "again-server",
+  readonly: false,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2000,
+    skipMiddlewares: true,
+  }
 });
 
 const PORT = process.env.PORT || 8080;
