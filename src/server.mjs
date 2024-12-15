@@ -1,8 +1,15 @@
-import { Server } from 'boardgame.io/dist/cjs/server.js';
 import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import express from 'express';
 import { MyGame } from './Game/game.js';
+
+// Define allowed origins explicitly
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:8080',
+  'https://lively-chaja-8eb605.netlify.app',  // Your Netlify URL
+  'https://again-production-04f0.up.railway.app'  // Your Railway URL
+];
 
 (async () => {
   try {
@@ -15,9 +22,13 @@ import { MyGame } from './Game/game.js';
     // Create Express app
     const app = express();
 
-    // Add security headers and CORS
+    // Add security headers and CORS with proper origin handling
     app.use((req, res, next) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
+      const origin = req.headers.origin;
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      }
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
       next();
@@ -25,6 +36,23 @@ import { MyGame } from './Game/game.js';
 
     // Add json parsing
     app.use(express.json());
+
+    // Add root GET endpoint for health checks
+    app.get('/', (req, res) => {
+      res.json({
+        status: 'ok',
+        message: 'Game server is running',
+        timestamp: new Date().toISOString(),
+        activeGames: gameStates.size,
+        activeConnections: activeConnections.size,
+        version: process.env.npm_package_version || '1.0.0'
+      });
+    });
+
+    // Add health check endpoint
+    app.get('/health', (req, res) => {
+      res.json({ status: 'healthy' });
+    });
 
     // Add game creation endpoint
     app.post('/games/:name/create', async (req, res) => {
@@ -61,18 +89,27 @@ import { MyGame } from './Game/game.js';
     // Create HTTP server
     const httpServer = createServer(app);
     
-    // Create Socket.IO server
+    // Create Socket.IO server with updated CORS
     const io = new SocketIO(httpServer, {
       cors: {
-        origin: '*',
-        methods: ['GET, POST, OPTIONS'],
-        credentials: false
-      }
+        origin: ALLOWED_ORIGINS,
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: true,
+        allowedHeaders: ['Content-Type']
+      },
+      transports: ['websocket', 'polling'],
+      pingTimeout: 60000,
+      pingInterval: 25000
     });
 
-    // Socket.IO connection handling
+    // Socket.IO connection handling with enhanced error handling
     io.on('connection', (socket) => {
       console.log('[SOCKET] New client connected:', socket.id);
+      console.log('[SOCKET] Client origin:', socket.handshake.headers.origin);
+      
+      socket.on('error', (error) => {
+        console.error('[SOCKET] Socket error:', error);
+      });
       
       // Enhanced connection tracking
       activeConnections.set(socket.id, { 
@@ -123,7 +160,7 @@ import { MyGame } from './Game/game.js';
               metadata: {
                 players: Object.keys(gameState.players),
                 currentPlayer: gameState.players[playerID],
-                phase: 'playing'  // or whatever phase system you're using
+                phase: 'playing'
               }
             });
 
@@ -147,61 +184,6 @@ import { MyGame } from './Game/game.js';
         }
       });
 
-      socket.on('move', async (data) => {
-        try {
-          const { matchID, move, args, playerID } = data;
-          console.log(`[SOCKET] Move received for game ${matchID}:`, { move, args, playerID });
-          
-          const gameState = gameStates.get(matchID);
-          if (!gameState) {
-            throw new Error('Game state not found');
-          }
-
-          // Apply the move using your game's move functions
-          if (MyGame.moves && MyGame.moves[move]) {
-            const context = {
-              G: gameState.G,
-              ctx: gameState.ctx,
-              playerID: playerID
-            };
-            
-            // Apply the move
-            gameState.G = MyGame.moves[move](context, ...args);
-            
-            // Update turn/player if needed
-            gameState.ctx.turn += 1;
-            gameState.ctx.currentPlayer = gameState.ctx.playOrder[
-              gameState.ctx.turn % gameState.ctx.numPlayers
-            ];
-          }
-
-          // Record the move
-          gameState.lastMove = {
-            type: move,
-            args: args,
-            playerID: playerID,
-            timestamp: new Date()
-          };
-
-          // Broadcast state update to all players
-          io.to(matchID).emit('gameUpdate', {
-            matchID,
-            state: gameState,
-            metadata: {
-              move: gameState.lastMove,
-              G: gameState.G,
-              ctx: gameState.ctx
-            }
-          });
-        } catch (error) {
-          console.error('[SOCKET] Error processing move:', error);
-          socket.emit('error', {
-            message: 'Failed to process move',
-            details: error.message
-          });
-        }
-      });
-
       socket.on('disconnect', (reason) => {
         console.log('[SOCKET] Client disconnected:', socket.id, 'Reason:', reason);
         const connection = activeConnections.get(socket.id);
@@ -217,23 +199,15 @@ import { MyGame } from './Game/game.js';
         }
         activeConnections.delete(socket.id);
       });
-
-      socket.on('error', (error) => {
-        console.error('[SOCKET] Socket error for client', socket.id, ':', error);
-        socket.emit('error', {
-          message: 'Socket error occurred',
-          details: error.message,
-          timestamp: new Date().toISOString()
-        });
-      });
     });
 
     // Get port from environment variable
     const PORT = process.env.PORT || 8080;
 
-    // Start the server
+    // Start the server with enhanced logging
     httpServer.listen(PORT, '0.0.0.0', () => {
       console.log(`Game server running on port ${PORT}`);
+      console.log('Allowed origins:', ALLOWED_ORIGINS);
     });
     
   } catch (error) {

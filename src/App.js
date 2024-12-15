@@ -4,15 +4,26 @@ import { SocketIO } from 'boardgame.io/dist/esm/multiplayer.js';
 import { MyGame } from './Game/game.js';
 import Board from './board.js';
 
-const SERVER_URL = 'https://again-production-04f0.up.railway.app';
+const { hostname } = window.location;
+const serverURL = hostname === 'localhost' 
+  ? 'http://localhost:8080'
+  : 'https://again-production-04f0.up.railway.app';
 
 const GameClient = Client({
   game: MyGame,
   board: Board,
   numPlayers: 2,
   multiplayer: SocketIO({ 
-    server: SERVER_URL,
-    secure: true
+    server: serverURL,
+    socketOpts: {
+      transports: ['websocket'],
+      upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+    }
   }),
   debug: true,
 });
@@ -24,7 +35,7 @@ const App = () => {
 
   const createMatch = async () => {
     try {
-      const response = await fetch(`${SERVER_URL}/games/default/create`, {
+      const response = await fetch(`${serverURL}/games/default/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
