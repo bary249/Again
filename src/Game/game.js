@@ -212,7 +212,9 @@ const processCardAction = (G, card, columnIndex, playerID, targetPlayerID) => {
 // In game.js, the complete playerMoves object:
 
 const playerMoves = {
-  playCard: ({ G, playerID }, cardId, columnIndex) => {
+  playCard: ({ G, ctx }, cardId, columnIndex) => {
+    console.log('playCard');
+    
     if (checkGameOver(G)) return G;
     
     console.group('playCard');
@@ -223,9 +225,9 @@ const playerMoves = {
     // Get the active tier and cards before any changes
     const column = newG.columns[columnIndex];
     const activeTier = column?.activeTier;
-    const currentCards = column?.tiers[activeTier]?.cards[playerID] || [];
+    const currentCards = column?.tiers[activeTier]?.cards[ctx.currentPlayer] || [];
     
-    console.log(`Current cards in tier ${activeTier} for player ${playerID}:`, currentCards);
+    console.log(`Current cards in tier ${activeTier} for player ${ctx.currentPlayer}:`, currentCards);
     
     // Strict validation checks
     if (!column) {
@@ -234,7 +236,7 @@ const playerMoves = {
         return INVALID_MOVE;
     }
     
-    if (newG.players[playerID].committed) {
+    if (newG.players[ctx.currentPlayer].committed) {
         console.log('Player already committed');
         console.groupEnd();
         return INVALID_MOVE;
@@ -258,29 +260,29 @@ const playerMoves = {
     }
     
     // Find and validate card
-    const cardIndex = newG.players[playerID].hand.findIndex(c => c.id === cardId);
+    const cardIndex = newG.players[ctx.currentPlayer].hand.findIndex(c => c.id === cardId);
     if (cardIndex === -1) {
         console.error('Card not found in hand');
         console.groupEnd();
         return INVALID_MOVE;
     }
     
-    const card = newG.players[playerID].hand[cardIndex];
+    const card = newG.players[ctx.currentPlayer].hand[cardIndex];
     
     // Check AP
-    if (newG.players[playerID].ap < card.cost) {
+    if (newG.players[ctx.currentPlayer].ap < card.cost) {
         console.log('Not enough AP');
         console.groupEnd();
         return INVALID_MOVE;
     }
     
     // Process the move
-    newG.players[playerID].hand.splice(cardIndex, 1);
-    newG.players[playerID].ap -= card.cost;
-    column.tiers[activeTier].cards[playerID].push(card);
+    newG.players[ctx.currentPlayer].hand.splice(cardIndex, 1);
+    newG.players[ctx.currentPlayer].ap -= card.cost;
+    column.tiers[activeTier].cards[ctx.currentPlayer].push(card);
     
     // Final validation
-    const finalCards = column.tiers[activeTier].cards[playerID];
+    const finalCards = column.tiers[activeTier].cards[ctx.currentPlayer];
     console.log(`After play: ${finalCards.length} cards in tier`);
     if (finalCards.length > 2) {
         console.error('ERROR: Somehow exceeded card limit!');
@@ -288,58 +290,72 @@ const playerMoves = {
         return INVALID_MOVE;
     }
     
-    newG.lastAction = `Player ${playerID} played ${card.name}(${cardId}) in column ${columnIndex}`;
+    newG.lastAction = `Player ${ctx.currentPlayer} played ${card.name}(${cardId}) in column ${columnIndex}`;
     console.log('Final state:', newG);
     console.groupEnd();
+
+    const finalState = {
+        G: newG,
+        ctx: ctx
+    };
+    if (window.socket) {
+        console.log('🎲 Emitting game state update:', finalState);
+        window.socket.emit('gameState', {
+            matchID: ctx.gameid,
+            G: finalState.G,
+            ctx: finalState.ctx
+        });
+    }
+
     return newG;
   },
 
-  commitPlayer: ({ G, playerID }) => {
+  commitPlayer: ({ G, ctx }) => {
     const newG = JSON.parse(JSON.stringify(G));
-    newG.players[playerID].committed = true;
-    newG.lastAction = `Player ${playerID} committed their moves`;
+    newG.players[ctx.currentPlayer].committed = true;
+    newG.lastAction = `Player ${ctx.currentPlayer} committed their moves`;
     return newG;
   },
 
-  uncommitPlayer: ({ G, playerID }) => {
+  uncommitPlayer: ({ G, ctx }) => {
     if (G.roundPhase !== 'playing') return G;
     const newG = JSON.parse(JSON.stringify(G));
-    newG.players[playerID].committed = false;
-    newG.lastAction = `Player ${playerID} uncommitted their moves`;
+    newG.players[ctx.currentPlayer].committed = false;
+    newG.lastAction = `Player ${ctx.currentPlayer} uncommitted their moves`;
     return newG;
   },
 
-  removeCard: ({ G, playerID }, cardId) => {
+  removeCard: ({ G, ctx }, cardId) => {
     const newG = JSON.parse(JSON.stringify(G));
-    if (newG.players[playerID].committed) return newG;
+    if (newG.players[ctx.currentPlayer].committed) return newG;
     
-    const player = newG.players[playerID];
+    const player = newG.players[ctx.currentPlayer];
     const cardIndex = player.hand.findIndex(card => card.id === cardId);
     
     if (cardIndex === -1) return newG;
     player.hand.splice(cardIndex, 1);
-    newG.lastAction = `Player ${playerID} removed a card`;
+    newG.lastAction = `Player ${ctx.currentPlayer} removed a card`;
     return newG;
   },
 
-  removeCardFromBoard: ({ G, playerID }, columnIndex) => {
+  removeCardFromBoard: ({ G, ctx }, columnIndex) => {
     const newG = JSON.parse(JSON.stringify(G));
-    if (newG.players[playerID].committed) return newG;
+    if (newG.players[ctx.currentPlayer].committed) return newG;
     
     const column = newG.columns[columnIndex];
     const activeTier = column.activeTier;
     const tier = column.tiers[activeTier];
-    const playerCards = tier.cards[playerID];
+    const playerCards = tier.cards[ctx.currentPlayer];
     
     if (!playerCards || playerCards.length === 0) return newG;
     
     const card = playerCards[playerCards.length - 1];
     
     playerCards.pop();
-    newG.players[playerID].hand.push(card);
-    newG.players[playerID].ap += card.cost;
+    newG.players[ctx.currentPlayer].hand.push(card);
+    newG.players[ctx.currentPlayer].ap += card.cost;
     
-    newG.lastAction = `Player ${playerID} took back ${card.name} from column ${columnIndex + 1}`;
+    newG.lastAction = `Player ${ctx.currentPlayer} took back ${card.name} from column ${columnIndex + 1}`;
     return newG;
   }
 };
