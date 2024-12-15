@@ -39,13 +39,20 @@ const io = new SocketIO(httpServer, {
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ['Content-Type', 'Accept'],
     credentials: true
-  }
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true,
+  cookie: false
 });
 
-// Add Socket.IO Admin UI
+// Simplified admin UI setup
 instrument(io, {
-  auth: false,  // Disable auth temporarily for testing
+  auth: false,
   mode: "development",
+  serverId: "again-server"
 });
 
 // Keep all your existing socket.io code
