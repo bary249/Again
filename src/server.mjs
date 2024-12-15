@@ -3,8 +3,22 @@ import { createServer } from 'http';
 import { Server as SocketIO } from 'socket.io';
 import express from 'express';
 import { MyGame } from './Game/game.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
+
+// Create __dirname equivalent for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 console.error('[STARTUP] Server code starting...');
+console.error('[DEBUG] __dirname:', __dirname);
+console.error('[DEBUG] public path:', join(__dirname, '../public'));
+console.error('[DEBUG] socket-test.html path:', join(__dirname, '../public/socket-test.html'));
+
+// Check if file exists
+const htmlPath = join(__dirname, '../public/socket-test.html');
+console.error('[DEBUG] Does socket-test.html exist?', existsSync(htmlPath));
 
 (async () => {
   try {
@@ -12,9 +26,16 @@ console.error('[STARTUP] Server code starting...');
     
     // Store active games and their states
     const gameStates = new Map();
+    const activeConnections = new Map();
 
     // Create Express app
     const app = express();
+
+    // Add security headers
+    app.use((req, res, next) => {
+      res.setHeader('Content-Security-Policy', "default-src 'self' http://localhost:8000 https://cdn.socket.io; script-src 'self' 'unsafe-inline' https://cdn.socket.io");
+      next();
+    });
 
     // Put request logging FIRST, before any other middleware
     app.use((req, res, next) => {
@@ -30,120 +51,72 @@ console.error('[STARTUP] Server code starting...');
     // THEN add json parsing
     app.use(express.json());
 
+    // Serve static files from public directory
+    app.use(express.static(join(__dirname, '../public')));
+
     // Create boardgame.io server
-    const server = Server({
+    const boardgameServer = Server({
       games: [MyGame],
       origins: ['http://localhost:3000', 'https://lively-chaja-8eb605.netlify.app']
     });
 
-    // Handle preflight requests
-    app.options('*', (req, res) => {
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-      res.status(200).end();
-    });
-
-    // Modify the GET endpoint for game state
-    app.get('/games/:name/:id/state', (req, res) => {
-      const { name, id } = req.params;
-      console.error(`[DEBUG] Fetching game state for game ${name}, id: ${id}`);
-      
-      const state = gameStates.get(id);
-      const internalState = server.getState(id);
-      
-      console.error('[DEBUG] State check:', {
-        hasState: !!state,
-        hasInternalState: !!internalState,
-        gameStatesSize: gameStates.size,
-        availableIds: Array.from(gameStates.keys())
-      });
-      
-      if (!state) {
-        console.error(`[DEBUG] Game state not found for id: ${id}`);
-        return res.status(404).json({ 
-          error: 'Game not found',
-          details: 'No game state found for this ID',
-          availableIds: Array.from(gameStates.keys())
-        });
-      }
-
-      if (!internalState) {
-        console.error(`[DEBUG] Internal game state not found for id: ${id}`);
-        return res.status(404).json({ 
-          error: 'Game not found',
-          details: 'No internal game state found for this ID'
-        });
-      }
-
-      const fullState = {
-        matchID: id,
-        state: {
-          ...state,
-          G: internalState.G,
-          ctx: internalState.ctx
-        }
-      };
-
-      console.error('[DEBUG] Returning full state:', fullState);
-      res.json(fullState);
-    });
-
-    // Add GET endpoint for list of games
-    app.get('/games/list', (req, res) => {
-      const games = Array.from(gameStates.entries()).map(([id, state]) => {
-        // Get the internal game state for each game
-        const internalState = server.getState(id);
-        return {
-          matchID: id,
-          state: {
-            ...state,
-            G: internalState?.G,
-            ctx: internalState?.ctx
+    // Add game creation endpoint
+    app.post('/games/:name/create', async (req, res) => {
+      try {
+        const gameName = req.params.name;
+        console.log(`Creating new game of type: ${gameName}`);
+        
+        // Create a new match
+        const matchID = `${gameName}_${Date.now()}`;
+        
+        // Initialize game state with boardgame.io initial state
+        const initialState = {
+          matchID,
+          players: {},
+          setupData: req.body,
+          gameName,
+          // Add the boardgame.io state
+          G: MyGame.setup(),  // This gets the initial G state
+          ctx: {
+            numPlayers: 2,
+            turn: 0,
+            currentPlayer: '0',
+            playOrder: ['0', '1'],
+            playOrderPos: 0,
+            phase: 'play',
+            activePlayers: null
           }
         };
-      });
-      
-      res.json({
-        matches: games
-      });
+        
+        // Store the game state
+        gameStates.set(matchID, initialState);
+        
+        res.json({ matchID });
+      } catch (error) {
+        console.error('Error creating game:', error);
+        res.status(500).json({ error: 'Failed to create game' });
+      }
     });
 
-    // Add POST endpoint for game creation
-    app.post('/games/:name/create', (req, res) => {
-      const { name } = req.params;
-      const matchID = `${Date.now()}`; // Generate a unique match ID
-      
-      // Create initial game state
-      const initialState = {
-        matchID,
-        players: {},
-        createdAt: new Date().toISOString()
-      };
-      
-      gameStates.set(matchID, initialState);
-      
-      res.status(200).json({
-        matchID,
-        initialState
-      });
+    // Explicit route for socket-test.html
+    app.get('/socket-test.html', (req, res) => {
+        const filePath = join(__dirname, '../public/socket-test.html');
+        console.log('[DEBUG] Attempting to serve socket-test.html from:', filePath);
+        console.log('[DEBUG] File exists:', existsSync(filePath));
+        
+        res.sendFile(filePath, (err) => {
+            if (err) {
+                console.error('[ERROR] Failed to serve socket-test.html:', err);
+                res.status(404).send('File not found');
+            } else {
+                console.log('[DEBUG] Successfully served socket-test.html');
+            }
+        });
     });
 
-    // Listen for game state changes
-    app.post('/games/:name/:id/update', (req, res) => {
-      const { name, id } = req.params;
-      const state = req.body;
-      
-      // Store the updated state
-      gameStates.set(id, state);
-      
-      // Emit to all connected clients
-      io.emit('gameUpdate', {
-        matchID: id,
-        state: state
-      });
-      
-      res.status(200).end();
+    // Root route redirects to socket-test.html
+    app.get('/', (req, res) => {
+        res.redirect('/socket-test.html');
     });
 
     // Create HTTP server
@@ -159,48 +132,180 @@ console.error('[STARTUP] Server code starting...');
     });
 
     io.on('connection', (socket) => {
-      console.log('Client connected:', socket.id);
+      console.log('[SOCKET] New client connected:', socket.id);
       
-      // Send current game states to newly connected client
-      gameStates.forEach((state, matchID) => {
-        socket.emit('gameUpdate', {
-          matchID,
-          state
-        });
+      // Enhanced connection tracking
+      activeConnections.set(socket.id, { 
+        connectedAt: new Date(),
+        currentGame: null,
+        playerID: null
       });
 
-      socket.on('joinGame', (matchID) => {
-        console.log(`Client ${socket.id} joining game ${matchID}`);
-        socket.join(matchID);
-        
-        // Send current state if available
-        const state = gameStates.get(matchID);
-        if (state) {
-          socket.emit('gameUpdate', {
-            matchID,
-            state
+      socket.onAny((eventName, ...args) => {
+        console.log(`[SOCKET] Event ${eventName} received from ${socket.id}:`, args);
+      });
+
+      // Enhanced join game handling with full state
+      socket.on('joinGame', async ({ matchID, playerID }) => {
+        try {
+          console.log(`[SOCKET] Client ${socket.id} joining game ${matchID} as player ${playerID}`);
+          
+          // Update connection tracking
+          const connection = activeConnections.get(socket.id);
+          if (connection) {
+            if (connection.currentGame) {
+              socket.leave(connection.currentGame);
+            }
+            connection.currentGame = matchID;
+            connection.playerID = playerID;
+          }
+          
+          socket.join(matchID);
+
+          // Get game state from our storage
+          const gameState = gameStates.get(matchID);
+          
+          if (gameState) {
+            // Update players in the game state
+            if (!gameState.players[playerID]) {
+              gameState.players[playerID] = {
+                id: playerID,
+                socketId: socket.id,
+                joinedAt: new Date()
+              };
+            }
+
+            // Send complete state including metadata
+            socket.emit('gameState', {
+              matchID,
+              playerID,
+              state: gameState,
+              metadata: {
+                players: Object.keys(gameState.players),
+                currentPlayer: gameState.players[playerID],
+                phase: 'playing'  // or whatever phase system you're using
+              }
+            });
+
+            // Notify other players
+            socket.to(matchID).emit('playerJoined', {
+              playerID,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                totalPlayers: Object.keys(gameState.players).length
+              }
+            });
+          } else {
+            throw new Error('Game not found');
+          }
+        } catch (error) {
+          console.error('[SOCKET] Error in joinGame:', error);
+          socket.emit('error', {
+            message: 'Failed to join game',
+            details: error.message
           });
         }
       });
 
-      socket.on('error', (error) => {
-        console.error('Socket error:', error);
+      socket.on('move', async (data) => {
+        try {
+          const { matchID, move, args, playerID } = data;
+          console.log(`[SOCKET] Move received for game ${matchID}:`, { move, args, playerID });
+          
+          const gameState = gameStates.get(matchID);
+          if (!gameState) {
+            throw new Error('Game state not found');
+          }
+
+          // Apply the move using your game's move functions
+          if (MyGame.moves && MyGame.moves[move]) {
+            const context = {
+              G: gameState.G,
+              ctx: gameState.ctx,
+              playerID: playerID
+            };
+            
+            // Apply the move
+            gameState.G = MyGame.moves[move](context, ...args);
+            
+            // Update turn/player if needed
+            gameState.ctx.turn += 1;
+            gameState.ctx.currentPlayer = gameState.ctx.playOrder[
+              gameState.ctx.turn % gameState.ctx.numPlayers
+            ];
+          }
+
+          // Record the move
+          gameState.lastMove = {
+            type: move,
+            args: args,
+            playerID: playerID,
+            timestamp: new Date()
+          };
+
+          // Broadcast state update to all players
+          io.to(matchID).emit('gameUpdate', {
+            matchID,
+            state: gameState,
+            metadata: {
+              move: gameState.lastMove,
+              G: gameState.G,
+              ctx: gameState.ctx
+            }
+          });
+        } catch (error) {
+          console.error('[SOCKET] Error processing move:', error);
+          socket.emit('error', {
+            message: 'Failed to process move',
+            details: error.message
+          });
+        }
       });
-      
+
       socket.on('disconnect', (reason) => {
-        console.log('Client disconnected:', socket.id, 'Reason:', reason);
+        console.log('[SOCKET] Client disconnected:', socket.id, 'Reason:', reason);
+        const connection = activeConnections.get(socket.id);
+        if (connection?.currentGame) {
+          io.to(connection.currentGame).emit('playerLeft', {
+            playerID: connection.playerID,
+            timestamp: new Date().toISOString(),
+            reason: reason,
+            metadata: {
+              remainingPlayers: io.sockets.adapter.rooms.get(connection.currentGame)?.size || 0
+            }
+          });
+        }
+        activeConnections.delete(socket.id);
+      });
+
+      socket.on('error', (error) => {
+        console.error('[SOCKET] Socket error for client', socket.id, ':', error);
+        socket.emit('error', {
+          message: 'Socket error occurred',
+          details: error.message,
+          timestamp: new Date().toISOString()
+        });
       });
     });
 
-    // Get port from environment variable or fallback to 8080
-    const PORT = process.env.PORT || 8080;
-
-    // Start the Express server first
-    await server.run({
-      port: PORT,
-      server: httpServer
+    // Run the boardgame.io server
+    await boardgameServer.run({
+      port: 8001,
+      callback: () => {
+        console.log('Boardgame.io server running on port 8001');
+      }
     });
-    console.log(`Server running on port ${PORT}`);
+
+    // Get port from environment variable or fallback to 8000
+    const PORT = process.env.PORT || 8000;
+
+    // Start the server
+    httpServer.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log('Current directory:', process.cwd());
+      console.log('Public directory exists:', existsSync(join(__dirname, '../public')));
+      console.log('Socket test file exists:', existsSync(join(__dirname, '../public/socket-test.html')));
+    });
     
   } catch (error) {
     console.error('Server startup error:', error);
