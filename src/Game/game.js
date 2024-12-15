@@ -743,6 +743,8 @@ const adminMoves = {
 };
 
 export const MyGame = {
+  name: 'my-game',
+
   setup: createInitialState,
 
   moves: {
